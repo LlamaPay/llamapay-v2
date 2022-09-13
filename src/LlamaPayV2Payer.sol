@@ -116,8 +116,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _amount amount to withdraw (20 decimals)
     function withdraw(uint256 _id, uint256 _amount) public {
         Stream storage stream = streams[_id];
-        address to = ownerOf(_id);
-        if (to == address(0)) revert OWNER_IS_ZERO();
+        if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         if (stream.amountPerSec == 0) revert STREAM_PAUSED_OR_CANCELLED();
 
         _update(stream.token);
@@ -134,11 +133,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
         uint256 toWithdraw;
         unchecked {
-            toWithdraw = _amount * (10**(20 - token.decimals()));
+            toWithdraw = _amount / (10**(20 - token.decimals()));
         }
-        token.safeTransfer(to, toWithdraw);
+        token.safeTransfer(msg.sender, toWithdraw);
 
-        emit Withdraw(_id, stream.token, to, toWithdraw);
+        emit Withdraw(_id, stream.token, msg.sender, toWithdraw);
     }
 
     /// @notice create a stream
