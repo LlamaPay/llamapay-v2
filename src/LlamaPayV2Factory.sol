@@ -13,7 +13,9 @@ contract LlamaPayV2Factory {
     uint256 public ownerCount;
     address public param;
 
-    mapping(uint256 => address) ownerContracts;
+    mapping(uint256 => address) public ownerContracts;
+    // mapping(address => address[10]) public whitelists;
+    mapping(address => address) public redirects;
 
     event LlamaPayContractCreated(address owner, address ownerContract);
 
@@ -28,6 +30,14 @@ contract LlamaPayV2Factory {
             ownerCount++;
         }
         emit LlamaPayContractCreated(msg.sender, llamapay);
+    }
+
+    function setRedirect(address _redirectTo) external {
+        redirects[msg.sender] = _redirectTo;
+    }
+
+    function resetRedirect() external {
+        redirects[msg.sender] = address(0);
     }
 
     /// @notice Calculates CREATE2 address for payer
