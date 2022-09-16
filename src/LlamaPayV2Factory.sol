@@ -14,7 +14,7 @@ contract LlamaPayV2Factory {
     address public param;
 
     mapping(uint256 => address) public ownerContracts;
-    // mapping(address => address[10]) public whitelists;
+    mapping(address => mapping(address => uint256)) public whitelists;
     mapping(address => address) public redirects;
 
     event LlamaPayContractCreated(address owner, address ownerContract);
@@ -38,6 +38,14 @@ contract LlamaPayV2Factory {
 
     function resetRedirect() external {
         redirects[msg.sender] = address(0);
+    }
+
+    function approveWhitelist(address _toApprove) external {
+        whitelists[msg.sender][_toApprove] = 1;
+    }
+
+    function revokeWhitelist(address _toRevoke) external {
+        whitelists[msg.sender][_toRevoke] = 0;
     }
 
     /// @notice Calculates CREATE2 address for payer

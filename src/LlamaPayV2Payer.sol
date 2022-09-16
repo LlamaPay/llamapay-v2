@@ -5,18 +5,8 @@ pragma solidity ^0.8.16;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import "./LlamaPayV2Factory.sol";
 import "./BoringBatchable.sol";
-
-interface Factory {
-    function param() external view returns (address);
-
-    // function whitelists(address owner)
-    //     external
-    //     view
-    //     returns (address[] calldata);
-
-    function redirects(address owner) external view returns (address);
-}
 
 error NOT_OWNER();
 error RECIPIENT_IS_ZERO();
@@ -25,6 +15,7 @@ error STREAM_PAUSED_OR_CANCELLED();
 error STREAM_ACTIVE();
 error AMOUNT_NOT_AVAILABLE();
 error PAYER_IN_DEBT();
+error NOT_WHITELISTED();
 
 /// @title LlamaPayV2 Payer Contract
 /// @author nemusona
@@ -67,7 +58,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     constructor() ERC721("LlamaPayV2 Stream", "LLAMAPAYV2-STREAM") {
         factory = msg.sender;
-        owner = Factory(msg.sender).param();
+        owner = LlamaPayV2Factory(msg.sender).param();
     }
 
     /// @notice update token balance
@@ -127,6 +118,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function withdraw(uint256 _id, uint256 _amount) public {
         Stream storage stream = streams[_id];
         address nftOwner = ownerOf(_id);
+        if (
+            msg.sender != nftOwner &&
+            LlamaPayV2Factory(factory).whitelists(nftOwner, msg.sender) != 1
+        ) revert NOT_WHITELISTED();
 
         if (stream.paidUpTo == 0) revert STREAM_PAUSED_OR_CANCELLED();
 
@@ -147,7 +142,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             toWithdraw = _amount / tokens[stream.token].divisor;
         }
 
-        address redirect = Factory(factory).redirects(owner);
+        address redirect = LlamaPayV2Factory(factory).redirects(nftOwner);
         if (redirect != address(0)) {
             token.safeTransfer(redirect, toWithdraw);
             emit Withdraw(_id, stream.token, redirect, toWithdraw);
