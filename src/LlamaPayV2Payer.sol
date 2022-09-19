@@ -1,6 +1,6 @@
 //SPDX-License-Identifier: AGPL-3.0-only
 
-pragma solidity ^0.8.16;
+pragma solidity ^0.8.17;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
@@ -39,8 +39,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     address public immutable owner;
     uint256 public tokenId;
 
-    mapping(address => Token) tokens;
-    mapping(uint256 => Stream) streams;
+    mapping(address => Token) public tokens;
+    mapping(uint256 => Stream) public streams;
 
     event Deposit(address token, address from, uint256 amount);
     event WithdrawPayer(address token, uint256 amount);
@@ -120,7 +120,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address nftOwner = ownerOf(_id);
         if (
             msg.sender != nftOwner &&
-            LlamaPayV2Factory(factory).whitelists(nftOwner, msg.sender) != 1
+            LlamaPayV2Factory(factory).whitelists(nftOwner, msg.sender) != 1 &&
+            msg.sender != owner
         ) revert NOT_WHITELISTED();
 
         if (stream.paidUpTo == 0) revert STREAM_PAUSED_OR_CANCELLED();
