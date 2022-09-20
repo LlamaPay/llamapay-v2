@@ -27,4 +27,14 @@ contract LlamaPayV2FactoryTest is Test {
         vm.expectRevert();
         llamaPayV2Factory.createLlamaPayContract();
     }
+
+    function testCreate2IsCorrect() public {
+        vm.prank(alice);
+        address payerContract = address(
+            llamaPayV2Factory.createLlamaPayContract()
+        );
+        (address predictedAddress, bool deployed) = llamaPayV2Factory.calculateLlamaPayAddress(alice);
+        assertEq(payerContract, predictedAddress);
+        assertEq(deployed, true);
+    }
 }

@@ -1,6 +1,7 @@
 # llamapay-v2
 
 ## Features
+
 - One contract per payer
 - Payer contracts are created using CREATE2
 - Stream multiple tokens per payer contract
@@ -12,5 +13,7 @@
 - Automatic withdrawals through bot
 
 ## WIP features
+
 - Gasless withdrawals through bot
-- DCA 
+- DCA
+- Scheduled transfers through bot

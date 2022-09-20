@@ -94,12 +94,31 @@ contract LlamaPayV2PayerTest is Test {
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
     }
 
-    function testWhitelist() public {
+    function testWhitelistDeny() public {
         vm.prank(alice);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.warp(1000000);
         vm.prank(steve);
         vm.expectRevert(0xbffbc6be); // NOT_WHITELISTED()
+        llamaPayV2Payer.withdraw(0, 100 * 1e20);
+    }
+
+    function testWhitelistApprove() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.warp(1000000);
+        vm.prank(bob);
+        llamaPayV2Factory.approveWhitelist(steve);
+        vm.prank(steve);
+        llamaPayV2Payer.withdraw(0, 100 * 1e20);
+    }
+
+    function testWithdrawDeny() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.warp(100);
+        vm.prank(bob);
+        vm.expectRevert(0x721805fc); // AMOUNT_NOT_AVAILABLE()
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
     }
 }
