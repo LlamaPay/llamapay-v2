@@ -17,3 +17,4 @@
 - Gasless withdrawals through bot
 - DCA
 - Scheduled transfers through bot
+- Yield
