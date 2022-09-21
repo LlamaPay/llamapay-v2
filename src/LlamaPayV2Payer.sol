@@ -122,7 +122,25 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice withdraw from stream
     /// @param _id token id
     /// @param _amount amount to withdraw (20 decimals)
-    function withdraw(uint256 _id, uint256 _amount) public {
+    function withdraw(uint256 _id, uint256 _amount) external {
+        (ERC20 token, address transferTo, uint256 toWithdraw) = _withdraw(
+            _id,
+            _amount
+        );
+        token.safeTransfer(transferTo, toWithdraw);
+    }
+
+    /// @notice withdraw from stream
+    /// @param _id token id
+    /// @param _amount amount to withdraw (20 decimals)
+    function _withdraw(uint256 _id, uint256 _amount)
+        private
+        returns (
+            ERC20 token,
+            address transferTo,
+            uint256 toWithdraw
+        )
+    {
         Stream storage stream = streams[_id];
         address nftOwner = ownerOf(_id);
         if (
@@ -143,21 +161,19 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             streams[_id].paidUpTo += uint96(_amount / stream.amountPerSec);
         }
 
-        ERC20 token = ERC20(stream.token);
+        token = ERC20(stream.token);
 
-        uint256 toWithdraw;
         unchecked {
             toWithdraw = _amount / tokens[stream.token].divisor;
         }
 
         address redirect = LlamaPayV2Factory(factory).redirects(nftOwner);
         if (redirect != address(0)) {
-            token.safeTransfer(redirect, toWithdraw);
-            emit Withdraw(_id, stream.token, redirect, toWithdraw);
+            transferTo = redirect;
         } else {
-            token.safeTransfer(nftOwner, toWithdraw);
-            emit Withdraw(_id, stream.token, nftOwner, toWithdraw);
+            transferTo = nftOwner;
         }
+        emit Withdraw(_id, stream.token, transferTo, toWithdraw);
     }
 
     /// @notice create a stream
@@ -216,7 +232,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 _withheldPerSec
     ) external {
         uint256 id = _createStream(_token, _to, _amountPerSec);
-        emit CreateStreamWithheld(id, _token, _to, _amountPerSec, _withheldPerSec);
+        emit CreateStreamWithheld(
+            id,
+            _token,
+            _to,
+            _amountPerSec,
+            _withheldPerSec
+        );
     }
 
     /// @notice cancel stream
@@ -227,7 +249,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (stream.paidUpTo == 0) revert STREAM_PAUSED_OR_CANCELLED();
 
         (uint256 withdrawableAmount, , ) = withdrawable(_id);
-        withdraw(_id, withdrawableAmount);
+        (ERC20 token, address transferTo, uint256 toWithdraw) = _withdraw(
+            _id,
+            withdrawableAmount
+        );
 
         unchecked {
             tokens[stream.token].totalPaidPerSec -= streams[_id].amountPerSec;
@@ -240,6 +265,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             paidUpTo: 0
         });
 
+        token.safeTransfer(transferTo, toWithdraw);
         emit CancelStream(_id);
     }
 
@@ -252,7 +278,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (stream.paidUpTo == 0) revert STREAM_PAUSED_OR_CANCELLED();
 
         (uint256 withdrawableAmount, , ) = withdrawable(_id);
-        withdraw(_id, withdrawableAmount);
+        (ERC20 token, address transferTo, uint256 toWithdraw) = _withdraw(
+            _id,
+            withdrawableAmount
+        );
 
         unchecked {
             tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
@@ -260,6 +289,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
         tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
 
+        token.safeTransfer(transferTo, toWithdraw);
         emit ModifyStream(_id, _newAmountPerSec);
     }
 
@@ -271,12 +301,17 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (stream.paidUpTo == 0) revert STREAM_PAUSED_OR_CANCELLED();
 
         (uint256 withdrawableAmount, , ) = withdrawable(_id);
-        withdraw(_id, withdrawableAmount);
+        (ERC20 token, address transferTo, uint256 toWithdraw) = _withdraw(
+            _id,
+            withdrawableAmount
+        );
 
         unchecked {
             tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
             streams[_id].paidUpTo = 0;
         }
+        
+        token.safeTransfer(transferTo, toWithdraw);
         emit PauseStream(_id);
     }
 
