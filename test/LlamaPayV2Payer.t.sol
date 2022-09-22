@@ -99,7 +99,7 @@ contract LlamaPayV2PayerTest is Test {
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.warp(1000000);
         vm.prank(steve);
-        vm.expectRevert(0xbffbc6be); // NOT_WHITELISTED()
+        vm.expectRevert(0xba1b8c53); // NOT_WHITELISTED()
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
     }
 
@@ -133,7 +133,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.prank(bob);
         llamaPayV2Factory.revokeWhitelist(steve);
         vm.prank(steve);
-        vm.expectRevert(0xbffbc6be); // NOT_WHITELISTED()
+        vm.expectRevert(0xba1b8c53); // NOT_WHITELISTED()
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
     }
 
@@ -177,7 +177,7 @@ contract LlamaPayV2PayerTest is Test {
 
     function testOnlyOwnerCanCreateStream() public {
         vm.prank(bob);
-        vm.expectRevert();
+        vm.expectRevert(0xba1b8c53);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
     }
 
@@ -185,7 +185,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.prank(alice);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.prank(bob);
-        vm.expectRevert();
+        vm.expectRevert(0xba1b8c53);
         llamaPayV2Payer.cancelStream(0);
     }
 
@@ -193,7 +193,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.prank(alice);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.prank(bob);
-        vm.expectRevert();
+        vm.expectRevert(0xba1b8c53);
         llamaPayV2Payer.pauseStream(0);
     }
 
@@ -201,8 +201,26 @@ contract LlamaPayV2PayerTest is Test {
         vm.prank(alice);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.prank(bob);
-        vm.expectRevert();
+        vm.expectRevert(0xba1b8c53);
         llamaPayV2Payer.resumeStream(0);
     }
 
+    function testPayerWhitelistApprove() external {
+        vm.prank(alice);
+        llamaPayV2Payer.approveWhitelist(bob);
+        vm.prank(bob);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+    }
+
+    function testPayerWhitelistDeny() external {
+        vm.prank(alice);
+        llamaPayV2Payer.approveWhitelist(bob);
+        vm.prank(bob);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.prank(alice);
+        llamaPayV2Payer.revokeWhitelist(bob);
+        vm.prank(bob);
+        vm.expectRevert(0xba1b8c53);
+        llamaPayV2Payer.createStream(address(llamaToken), steve, 0.001 * 1e20);
+    }
 }
