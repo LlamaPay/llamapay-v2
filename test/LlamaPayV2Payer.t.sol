@@ -121,4 +121,88 @@ contract LlamaPayV2PayerTest is Test {
         vm.expectRevert(0x721805fc); // AMOUNT_NOT_AVAILABLE()
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
     }
+
+    function testWhitelistRevoke() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.warp(1000000);
+        vm.prank(bob);
+        llamaPayV2Factory.approveWhitelist(steve);
+        vm.prank(steve);
+        llamaPayV2Payer.withdraw(0, 100 * 1e20);
+        vm.prank(bob);
+        llamaPayV2Factory.revokeWhitelist(steve);
+        vm.prank(steve);
+        vm.expectRevert(0xbffbc6be); // NOT_WHITELISTED()
+        llamaPayV2Payer.withdraw(0, 100 * 1e20);
+    }
+
+    function testDenyBurnedWithdraw() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.warp(1000000);
+        vm.prank(alice);
+        llamaPayV2Payer.cancelStream(0);
+        vm.prank(steve);
+        vm.expectRevert("NOT_MINTED");
+        llamaPayV2Payer.withdraw(0, 100 * 1e20);
+    }
+
+    function testRedirect() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.prank(bob);
+        llamaPayV2Factory.setRedirect(steve);
+        vm.warp(1000000);
+        vm.prank(bob);
+        llamaPayV2Payer.withdraw(0, 100 * 1e20);
+        assertEq(100 * 1e18, llamaToken.balanceOf(steve));
+    }
+
+    function testResetRedirect() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.prank(bob);
+        llamaPayV2Factory.setRedirect(steve);
+        vm.warp(1000000);
+        vm.prank(bob);
+        llamaPayV2Payer.withdraw(0, 100 * 1e20);
+        assertEq(100 * 1e18, llamaToken.balanceOf(steve));
+        vm.prank(bob);
+        llamaPayV2Factory.resetRedirect();
+        vm.prank(bob);
+        llamaPayV2Payer.withdraw(0, 300 * 1e20);
+        assertEq(300 * 1e18, llamaToken.balanceOf(bob));
+    }
+
+    function testOnlyOwnerCanCreateStream() public {
+        vm.prank(bob);
+        vm.expectRevert();
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+    }
+
+    function testOnlyOwnerCanCancelStream() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.prank(bob);
+        vm.expectRevert();
+        llamaPayV2Payer.cancelStream(0);
+    }
+
+    function testOnlyOwnerCanPauseStream() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.prank(bob);
+        vm.expectRevert();
+        llamaPayV2Payer.pauseStream(0);
+    }
+
+    function testOnlyOwnerCanResumeStream() public {
+        vm.prank(alice);
+        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
+        vm.prank(bob);
+        vm.expectRevert();
+        llamaPayV2Payer.resumeStream(0);
+    }
+
 }
