@@ -39,7 +39,7 @@ contract LlamaPayV2PayerTest is Test {
 
     function testWithdrawPayer() public {
         vm.prank(alice);
-        llamaPayV2Payer.withdrawPayer(address(llamaToken), 1000e20);
+        llamaPayV2Payer.withdrawPayer(address(llamaToken), alice, 1000e20);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
         assertEq(balance, 9000e20);
     }

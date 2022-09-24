@@ -45,7 +45,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     mapping(address => uint256) public whitelists;
 
     event Deposit(address token, address from, uint256 amount);
-    event WithdrawPayer(address token, uint256 amount);
+    event WithdrawPayer(address token, address to, uint256 amount);
     event Withdraw(uint256 id, address token, address to, uint256 amount);
     event CreateStream(
         uint256 id,
@@ -106,7 +106,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice withdraw unstreamed tokens
     /// @param _token token to withdraw
     /// @param _amount amount to withdraw (20 decimals)
-    function withdrawPayer(address _token, uint256 _amount) external {
+    function withdrawPayer(
+        address _token,
+        address _to,
+        uint256 _amount
+    ) external {
         if (msg.sender != owner && whitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
 
@@ -118,8 +122,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         unchecked {
             toWithdraw = _amount / tokens[_token].divisor;
         }
-        token.safeTransfer(msg.sender, toWithdraw);
-        emit WithdrawPayer(_token, toWithdraw);
+        token.safeTransfer(_to, toWithdraw);
+        emit WithdrawPayer(_token, _to, _amount);
     }
 
     /// @notice withdraw from stream
