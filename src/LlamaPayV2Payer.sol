@@ -107,7 +107,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _token token to withdraw
     /// @param _amount amount to withdraw (20 decimals)
     function withdrawPayer(address _token, uint256 _amount) external {
-        if (msg.sender != owner) revert NOT_OWNER();
+        if (msg.sender != owner && whitelists[msg.sender] != 1)
+            revert NOT_OWNER_OR_WHITELISTED();
 
         _update(_token);
         tokens[_token].balance -= _amount;
