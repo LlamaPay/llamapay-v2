@@ -11,10 +11,9 @@
 - Whitelisting for withdrawals
 - Redirect withdrawals 
 - Automatic withdrawals through bot
+- Scheduled transfers through bot
+- Gasless withdrawals through bot
 
 ## WIP features
-
-- Gasless withdrawals through bot
 - DCA
-- Scheduled transfers through bot
 - Yield
