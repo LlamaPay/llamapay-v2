@@ -5,8 +5,18 @@ pragma solidity ^0.8.17;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import "./LlamaPayV2Factory.sol";
 import "./BoringBatchable.sol";
+
+interface Factory {
+    function param() external view returns (address);
+
+    function withdrawalWhitelists(address, address)
+        external
+        view
+        returns (uint256);
+    
+    function redirects(address) external view returns (address);
+}
 
 error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
@@ -67,7 +77,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     constructor() ERC721("LlamaPayV2 Stream", "LLAMAPAYV2-STREAM") {
         factory = msg.sender;
-        owner = LlamaPayV2Factory(msg.sender).param();
+        owner = Factory(msg.sender).param();
     }
 
     /// @notice update token balance
@@ -152,7 +162,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address nftOwner = ownerOf(_id);
         if (
             msg.sender != nftOwner &&
-            LlamaPayV2Factory(factory).withdrawalWhitelists(
+            Factory(factory).withdrawalWhitelists(
                 nftOwner,
                 msg.sender
             ) !=
@@ -178,7 +188,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             toWithdraw = _amount / tokens[stream.token].divisor;
         }
 
-        address redirect = LlamaPayV2Factory(factory).redirects(nftOwner);
+        address redirect = Factory(factory).redirects(nftOwner);
         if (redirect != address(0)) {
             transferTo = redirect;
         } else {
