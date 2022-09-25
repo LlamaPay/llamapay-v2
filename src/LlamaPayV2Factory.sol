@@ -46,12 +46,12 @@ contract LlamaPayV2Factory is BoringBatchable {
 
     /// @notice approve whitelisting for withdrawals
     /// @param _toApprove address to approve
-    function approveWhitelist(address _toApprove) external {
+    function approveWithdrawalWhitelist(address _toApprove) external {
         withdrawalWhitelists[msg.sender][_toApprove] = 1;
     }
 
     /// @notice revoke whitelisting for withdrawals
-    function revokeWhitelist(address _toRevoke) external {
+    function revokeWithdrawalWhitelist(address _toRevoke) external {
         withdrawalWhitelists[msg.sender][_toRevoke] = 0;
     }
 

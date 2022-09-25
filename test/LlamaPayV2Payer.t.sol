@@ -108,7 +108,7 @@ contract LlamaPayV2PayerTest is Test {
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.warp(1000000);
         vm.prank(bob);
-        llamaPayV2Factory.approveWhitelist(steve);
+        llamaPayV2Factory.approveWithdrawalWhitelist(steve);
         vm.prank(steve);
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
     }
@@ -127,11 +127,11 @@ contract LlamaPayV2PayerTest is Test {
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.warp(1000000);
         vm.prank(bob);
-        llamaPayV2Factory.approveWhitelist(steve);
+        llamaPayV2Factory.approveWithdrawalWhitelist(steve);
         vm.prank(steve);
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
         vm.prank(bob);
-        llamaPayV2Factory.revokeWhitelist(steve);
+        llamaPayV2Factory.revokeWithdrawalWhitelist(steve);
         vm.prank(steve);
         vm.expectRevert(0xba1b8c53); // NOT_WHITELISTED()
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
@@ -207,18 +207,18 @@ contract LlamaPayV2PayerTest is Test {
 
     function testPayerWhitelistApprove() external {
         vm.prank(alice);
-        llamaPayV2Payer.approveWhitelist(bob);
+        llamaPayV2Payer.approvePayerWhitelist(bob);
         vm.prank(bob);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
     }
 
     function testPayerWhitelistDeny() external {
         vm.prank(alice);
-        llamaPayV2Payer.approveWhitelist(bob);
+        llamaPayV2Payer.approvePayerWhitelist(bob);
         vm.prank(bob);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
         vm.prank(alice);
-        llamaPayV2Payer.revokeWhitelist(bob);
+        llamaPayV2Payer.revokePayerWhitelist(bob);
         vm.prank(bob);
         vm.expectRevert(0xba1b8c53);
         llamaPayV2Payer.createStream(address(llamaToken), steve, 0.001 * 1e20);
