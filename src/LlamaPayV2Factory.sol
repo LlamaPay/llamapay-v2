@@ -3,10 +3,11 @@
 pragma solidity ^0.8.17;
 
 import "./LlamaPayV2Payer.sol";
+import "./BoringBatchable.sol";
 
 error AlreadyDeployed();
 
-contract LlamaPayV2Factory {
+contract LlamaPayV2Factory is BoringBatchable {
     bytes32 constant INIT_CODEHASH =
         keccak256(type(LlamaPayV2Payer).creationCode);
 
@@ -14,7 +15,7 @@ contract LlamaPayV2Factory {
     address public param;
 
     mapping(uint256 => address) public ownerContracts;
-    mapping(address => mapping(address => uint256)) public whitelists;
+    mapping(address => mapping(address => uint256)) public withdrawalWhitelists;
     mapping(address => address) public redirects;
 
     event LlamaPayContractCreated(address owner, address ownerContract);
@@ -32,20 +33,26 @@ contract LlamaPayV2Factory {
         emit LlamaPayContractCreated(msg.sender, llamapay);
     }
 
+    /// @notice set redirect for sender
+    /// @param _redirectTo address to redirect to
     function setRedirect(address _redirectTo) external {
         redirects[msg.sender] = _redirectTo;
     }
 
+    /// @notice reset redirect for sender
     function resetRedirect() external {
         redirects[msg.sender] = address(0);
     }
 
+    /// @notice approve whitelisting for withdrawals
+    /// @param _toApprove address to approve
     function approveWhitelist(address _toApprove) external {
-        whitelists[msg.sender][_toApprove] = 1;
+        withdrawalWhitelists[msg.sender][_toApprove] = 1;
     }
 
+    /// @notice revoke whitelisting for withdrawals
     function revokeWhitelist(address _toRevoke) external {
-        whitelists[msg.sender][_toRevoke] = 0;
+        withdrawalWhitelists[msg.sender][_toRevoke] = 0;
     }
 
     /// @notice Calculates CREATE2 address for payer

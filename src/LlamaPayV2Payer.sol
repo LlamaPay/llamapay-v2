@@ -152,7 +152,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address nftOwner = ownerOf(_id);
         if (
             msg.sender != nftOwner &&
-            LlamaPayV2Factory(factory).whitelists(nftOwner, msg.sender) != 1 &&
+            LlamaPayV2Factory(factory).withdrawalWhitelists(
+                nftOwner,
+                msg.sender
+            ) !=
+            1 &&
             msg.sender != owner
         ) revert NOT_OWNER_OR_WHITELISTED();
 
