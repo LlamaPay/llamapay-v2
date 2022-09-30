@@ -139,17 +139,6 @@ contract LlamaPayV2PayerTest is Test {
         llamaPayV2Payer.withdraw(0, 100 * 1e20);
     }
 
-    function testDenyBurnedWithdraw() public {
-        vm.prank(alice);
-        llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);
-        vm.warp(1000000);
-        vm.prank(alice);
-        llamaPayV2Payer.cancelStream(0);
-        vm.prank(steve);
-        vm.expectRevert("NOT_MINTED");
-        llamaPayV2Payer.withdraw(0, 100 * 1e20);
-    }
-
     function testRedirect() public {
         vm.prank(alice);
         llamaPayV2Payer.createStream(address(llamaToken), bob, 0.001 * 1e20);

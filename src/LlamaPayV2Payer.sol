@@ -24,6 +24,7 @@ error PAYER_IN_DEBT();
 error INACTIVE_STREAM();
 error ACTIVE_STREAM();
 error NOT_OWNER();
+error ZERO_ADDRESS();
 
 /// @title LlamaPayV2 Payer Contract
 /// @author nemusona
@@ -122,6 +123,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
+        if (_to == address(0)) revert ZERO_ADDRESS();
 
         _update(_token);
         tokens[_token].balance -= _amount;
@@ -215,6 +217,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) private returns (uint256 id) {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
+        if (_to == address(0)) revert ZERO_ADDRESS();
 
         _update(_token);
 
