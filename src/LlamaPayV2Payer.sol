@@ -19,6 +19,7 @@ interface Factory {
 }
 
 error NOT_OWNER_OR_WHITELISTED();
+error DESTINATION_NOT_WHITELISTED();
 error AMOUNT_NOT_AVAILABLE();
 error PAYER_IN_DEBT();
 error INACTIVE_STREAM();
@@ -85,9 +86,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function _update(address _token) private {
         Token storage token = tokens[_token];
         uint256 delta = block.timestamp - token.lastUpdate;
+        uint256 streamed = delta * token.totalPaidPerSec;
 
         unchecked {
-            uint256 streamed = delta * token.totalPaidPerSec;
             if (token.balance >= streamed) {
                 tokens[_token].balance -= streamed;
                 tokens[_token].lastUpdate = uint40(block.timestamp);
@@ -123,6 +124,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
+        if (payerWhitelists[_to] != 1) DESTINATION_NOT_WHITELISTED();
         if (_to == address(0)) revert ZERO_ADDRESS();
 
         _update(_token);
