@@ -124,7 +124,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        if (payerWhitelists[_to] != 1) DESTINATION_NOT_WHITELISTED();
+        if (payerWhitelists[_to] != 1 && _to != owner) revert DESTINATION_NOT_WHITELISTED();
         if (_to == address(0)) revert ZERO_ADDRESS();
 
         _update(_token);
@@ -277,28 +277,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         );
     }
 
-    /// @notice cancel stream
-    /// @param _id token id
-    function cancelStream(uint256 _id) external {
-        Stream storage stream = streams[_id];
-
-        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
-            revert NOT_OWNER_OR_WHITELISTED();
-        if (!stream.active) revert INACTIVE_STREAM();
-
-        uint256 delta = tokens[stream.token].lastUpdate - stream.paidUpTo;
-        uint256 available = delta * stream.amountPerSec;
-
-        unchecked {
-            tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
-        }
-
-        streams[_id].active = false;
-        streams[_id].redeemable += available;
-
-        emit CancelStream(_id);
-    }
-
     /// @notice modify stream
     /// @param _id token id
     /// @param _newAmountPerSec new amount per sec (20 decimals)
@@ -326,6 +304,39 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         }
 
         emit ModifyStream(_id, _newAmountPerSec);
+    }
+
+    /// @notice burn and cancel stream
+    /// @param _id token id
+    function cancelStream(uint256 _id) external {
+        Stream storage stream = streams[_id];
+
+        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
+            revert NOT_OWNER_OR_WHITELISTED();
+        if (!stream.active) revert INACTIVE_STREAM();
+
+        _update(stream.token);
+
+        uint256 delta = tokens[stream.token].lastUpdate - stream.paidUpTo;
+        uint256 available = (delta * stream.amountPerSec) + stream.redeemable;
+        (ERC20 token, address transferTo, uint256 toWithdraw) = _withdraw(
+            _id,
+            available
+        );
+
+        _burn(_id);
+        streams[_id] = Stream({
+            amountPerSec: 0,
+            token: address(0),
+            paidUpTo: 0,
+            active: false,
+            redeemable: 0
+        });
+
+        token.safeTransfer(transferTo, toWithdraw);
+
+        emit Withdraw(_id, address(token), transferTo, toWithdraw);
+        emit CancelStream(_id);
     }
 
     /// @notice pause stream
