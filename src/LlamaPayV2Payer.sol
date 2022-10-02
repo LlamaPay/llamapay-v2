@@ -71,6 +71,22 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 amountPerSec,
         uint256 withhheldPerSec
     );
+    event CreateStreamWithheldReason(
+        uint256 id,
+        address token,
+        address to,
+        uint256 amountPerSec,
+        uint256 withhheldPerSec,
+        string reason
+    );
+    event CreateStreamReason(
+        uint256 id,
+        address token,
+        address to,
+        uint256 amountPerSec,
+        string reason
+    );
+
     event CancelStream(uint256 id);
     event ModifyStream(uint256 id, uint256 newAmountPerSec);
     event ResumeStream(uint256 id);
@@ -124,7 +140,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        if (payerWhitelists[_to] != 1 && _to != owner) revert DESTINATION_NOT_WHITELISTED();
+        if (payerWhitelists[_to] != 1 && _to != owner)
+            revert DESTINATION_NOT_WHITELISTED();
         if (_to == address(0)) revert ZERO_ADDRESS();
 
         _update(_token);
@@ -256,6 +273,21 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         emit CreateStream(id, _token, _to, _amountPerSec);
     }
 
+    /// @notice create a stream
+    /// @param _token token to stream
+    /// @param _to to mint token to
+    /// @param _amountPerSec tokens to stream per sec (20 decimals)
+    /// @param _reason reason
+    function createStreamReason(
+        address _token,
+        address _to,
+        uint256 _amountPerSec,
+        string memory _reason
+    ) external {
+        uint256 id = _createStream(_token, _to, _amountPerSec);
+        emit CreateStreamReason(id, _token, _to, _amountPerSec, _reason);
+    }
+
     /// @notice create stream with withheld event
     /// @param _token token to stream
     /// @param _to to mint token to
@@ -274,6 +306,29 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             _to,
             _amountPerSec,
             _withheldPerSec
+        );
+    }
+
+    /// @notice create stream with withheld event
+    /// @param _token token to stream
+    /// @param _to to mint token to
+    /// @param _amountPerSec tokens to stream per sec (20 decimals)
+    /// @param _withheldPerSec withheld per sec for tax withholding (20 decimals)
+    function createStreamWithheldReason(
+        address _token,
+        address _to,
+        uint256 _amountPerSec,
+        uint256 _withheldPerSec,
+        string memory _reason
+    ) external {
+        uint256 id = _createStream(_token, _to, _amountPerSec);
+        emit CreateStreamWithheldReason(
+            id,
+            _token,
+            _to,
+            _amountPerSec,
+            _withheldPerSec,
+            _reason
         );
     }
 
