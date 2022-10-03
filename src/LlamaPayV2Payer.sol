@@ -527,7 +527,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         Token storage token = tokens[stream.token];
 
         uint256 delta = block.timestamp - token.lastUpdate;
-        uint256 totalStreamed = delta * token.totalPaidPerSec;
+        uint256 totalPaidPerSec = token.totalPaidPerSec;
+        if (stream.starts > stream.paidUpTo) {
+            totalPaidPerSec += stream.amountPerSec;
+        }
+        uint256 totalStreamed = delta * totalPaidPerSec;
 
         if (token.balance >= totalStreamed) {
             lastPayerUpdate = block.timestamp;
@@ -536,7 +540,15 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 token.lastUpdate +
                 (token.balance / token.totalPaidPerSec);
         }
-        uint256 streamDelta = lastPayerUpdate - stream.paidUpTo;
+
+        uint256 streamDelta;
+        if (block.timestamp >= stream.starts) {
+            streamDelta = 0;
+        } else if (stream.starts > stream.paidUpTo) {
+            streamDelta = lastPayerUpdate - stream.starts;
+        } else {
+            streamDelta = lastPayerUpdate - stream.paidUpTo;
+        }
         withdrawableAmount =
             (streamDelta * stream.amountPerSec) +
             stream.redeemable;
