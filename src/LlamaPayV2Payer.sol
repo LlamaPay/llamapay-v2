@@ -484,6 +484,31 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         debt = (block.timestamp - lastPayerUpdate) * stream.amountPerSec;
     }
 
+    struct DelayedStartStream {
+        address token;
+        address to;
+        uint256 amountPerSec;
+        uint start;
+    }
+
+    DelayedStartStream[] delayedStarts;
+
+    function scheduleDelayedStart(address token,
+        address to,
+        uint256 amountPerSec,
+        uint start) external 
+    {
+        // need auth
+        delayedStarts.push(DelayedStart(token, to, amountPerSec, start));
+    }
+
+    function triggerDelayedStart(uint id) external {
+        DelayedStart storage delayedStart = delayedStarts[id];
+        require(delayedStart.token != address(0));
+        _createStream(delayedStart.token, delayedStart.to, delayedStart.amountPerSec); // need to change _createStream to accept this auth too
+        delayedStart.token = address(0);
+    }
+
     function tokenURI(uint256 id)
         public
         view
