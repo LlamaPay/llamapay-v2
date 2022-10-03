@@ -12,8 +12,9 @@
 - Redirect withdrawals 
 - Automatic withdrawals through bot
 - Scheduled transfers through bot
-- Gasless withdrawals through bot
+- Whitelisting other contracts to withdraw on behalf
 
 ## WIP features
 - DCA
 - Yield
+- Gasless withdrawals through bot
