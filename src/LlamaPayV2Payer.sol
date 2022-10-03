@@ -505,6 +505,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function triggerDelayedStart(uint id) external {
         DelayedStart storage delayedStart = delayedStarts[id];
         require(delayedStart.token != address(0));
+        require(block.timestamp >= delayedStart.start);
+        // missing: only allow if payerWithdrawable < amount owed to stream
         _createStream(delayedStart.token, delayedStart.to, delayedStart.amountPerSec); // need to change _createStream to accept this auth too
         delayedStart.token = address(0);
     }
