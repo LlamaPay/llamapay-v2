@@ -23,7 +23,7 @@ error PAYER_IN_DEBT();
 error NOT_OWNER();
 error ZERO_ADDRESS();
 error INVALID_START();
-error NONZERO_REDEEMABLE();
+error NOT_CANCELLED_OR_REDEEMABLE();
 
 /// @title LlamaPayV2 Payer Contract
 /// @author nemusona
@@ -164,7 +164,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             payerWhitelists[msg.sender] != 1 &&
             msg.sender != ownerOf(_id)
         ) revert NOT_OWNER_OR_WHITELISTED();
-        if (streams[_id].redeemable > 0) revert NONZERO_REDEEMABLE();
+        Stream storage stream = streams[_id];
+        if (stream.redeemable > 0 || stream.paidUpTo == 0)
+            revert NOT_CANCELLED_OR_REDEEMABLE();
 
         _burn(_id);
     }
