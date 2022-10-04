@@ -190,6 +190,17 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 available;
         if (stream.paidUpTo == 0) {
             available = stream.redeemable;
+        } else if (
+            stream.starts > stream.paidUpTo &&
+            tokenInfo.lastUpdate >= stream.ends
+        ) {
+            /// Handles if stream was never initialized but has ended
+            uint256 owed = (stream.ends - streams.starts) * stream.amountPerSec;
+            streams[_id].redeemable = owed;
+            available = owed;
+            unchecked {
+                streams[_id].paidUpTo = 0;
+            }
         } else if (stream.starts > stream.paidUpTo) {
             _initializeStream(_id);
             available = streams[_id].redeemable;
