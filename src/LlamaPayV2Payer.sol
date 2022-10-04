@@ -187,34 +187,29 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         _updateToken(token);
         Token storage tokenInfo = tokens[token];
 
-        uint256 available;
-        if (stream.paidUpTo == 0) {
-            available = stream.redeemable;
-        } else if (
+        if (
             stream.starts > stream.paidUpTo &&
             tokenInfo.lastUpdate >= stream.ends
         ) {
             /// Handles if stream was never initialized but has ended
-            uint256 owed = (stream.ends - streams.starts) * stream.amountPerSec;
-            streams[_id].redeemable = owed;
-            available = owed;
+            streams[_id].redeemable =
+                (stream.ends - stream.starts) *
+                stream.amountPerSec;
             unchecked {
                 streams[_id].paidUpTo = 0;
             }
         } else if (stream.starts > stream.paidUpTo) {
+            /// Initialize stream if stream hasn't been initialized but past start time
             _initializeStream(_id);
-            available = streams[_id].redeemable;
         } else if (tokenInfo.lastUpdate >= stream.ends) {
+            /// Terminate stream if stream has ended but still ongoing
             _terminateStream(_id);
-            available = streams[_id].redeemable;
-        } else {
-            available =
-                ((tokenInfo.lastUpdate - stream.paidUpTo) *
-                    stream.amountPerSec) +
-                stream.redeemable;
+        } else if (stream.paidUpTo != 0) {
+            streams[_id].redeemable += (tokenInfo.lastUpdate - stream.paidUpTo);
+            streams[_id].paidUpTo = tokenInfo.lastUpdate;
         }
 
-        if (_amount > available / tokenInfo.divisor)
+        if (_amount * tokenInfo.divisor > streams[_id].redeemable)
             revert AMOUNT_NOT_AVAILABLE();
 
         address redirect = Factory(factory).redirects(tokenOwner);
