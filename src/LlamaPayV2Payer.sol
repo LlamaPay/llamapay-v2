@@ -40,10 +40,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     }
 
     struct Stream {
-        uint256 amountPerSec;
+        uint208 amountPerSec;
+        uint48 lastPaid;
         address token;
         uint48 starts;
-        uint48 lastPaid;
+        uint48 ends;
         uint256 redeemable;
     }
 
@@ -63,7 +64,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address token,
         address to,
         uint256 amountPerSec,
-        uint48 starts
+        uint48 starts,
+        uint48 ends
     );
     event CreateStreamWithReason(
         uint256 id,
@@ -71,6 +73,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address to,
         uint256 amountPerSec,
         uint48 starts,
+        uint48 ends,
         string reason
     );
     event CreateStreamWithheld(
@@ -79,6 +82,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address to,
         uint256 amountPerSec,
         uint48 starts,
+        uint48 ends,
         uint256 withheldPerSec
     );
     event CreateStreamWithheldWithReason(
@@ -87,6 +91,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address to,
         uint256 amountPerSec,
         uint48 starts,
+        uint48 ends,
         uint256 withheldPerSec,
         string reason
     );
@@ -158,10 +163,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address _token,
         address _to,
         uint208 _amountPerSec,
-        uint48 _starts
+        uint48 _starts,
+        uint48 _ends
     ) external {
-        uint256 id = _createStream(_token, _to, _amountPerSec, _starts);
-        emit CreateStream(id, _token, _to, _amountPerSec, _starts);
+        uint256 id = _createStream(_token, _to, _amountPerSec, _starts, _ends);
+        emit CreateStream(id, _token, _to, _amountPerSec, _starts, _ends);
     }
 
     function createStreamWithReason(
@@ -169,15 +175,17 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address _to,
         uint208 _amountPerSec,
         uint48 _starts,
+        uint48 _ends,
         string memory _reason
     ) external {
-        uint256 id = _createStream(_token, _to, _amountPerSec, _starts);
+        uint256 id = _createStream(_token, _to, _amountPerSec, _starts, _ends);
         emit CreateStreamWithReason(
             id,
             _token,
             _to,
             _amountPerSec,
             _starts,
+            _ends,
             _reason
         );
     }
@@ -187,15 +195,17 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address _to,
         uint208 _amountPerSec,
         uint48 _starts,
+        uint48 _ends,
         uint256 _withheldPerSec
     ) external {
-        uint256 id = _createStream(_token, _to, _amountPerSec, _starts);
+        uint256 id = _createStream(_token, _to, _amountPerSec, _starts, _ends);
         emit CreateStreamWithheld(
             id,
             _token,
             _to,
             _amountPerSec,
             _starts,
+            _ends,
             _withheldPerSec
         );
     }
@@ -205,22 +215,24 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address _to,
         uint208 _amountPerSec,
         uint48 _starts,
+        uint48 _ends,
         uint256 _withheldPerSec,
         string memory _reason
     ) external {
-        uint256 id = _createStream(_token, _to, _amountPerSec, _starts);
+        uint256 id = _createStream(_token, _to, _amountPerSec, _starts, _ends);
         emit CreateStreamWithheldWithReason(
             id,
             _token,
             _to,
             _amountPerSec,
             _starts,
+            _ends,
             _withheldPerSec,
             _reason
         );
     }
 
-    function modifyStream(uint256 _id, uint256 _newAmountPerSec) external {
+    function modifyStream(uint256 _id, uint208 _newAmountPerSec) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
         Stream storage stream = streams[_id];
@@ -264,6 +276,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             revert NOT_OWNER_OR_WHITELISTED();
         Stream storage stream = streams[_id];
         if (stream.lastPaid > 0) revert ACTIVE_STREAM();
+        if (block.timestamp >= stream.ends) revert INVALID_START();
 
         _updateToken(stream.token);
         if (block.timestamp > tokens[stream.token].lastUpdate)
@@ -321,10 +334,24 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         _updateToken(token);
         uint48 lastUpdate = tokens[token].lastUpdate;
 
-        if (
+        if (stream.lastPaid == 0) {
+            /// Literally do nothing
+        } else if (
             stream.starts > stream.lastPaid &&
             lastUpdate >= stream.starts &&
-            stream.lastPaid != 0
+            lastUpdate >= stream.ends
+        ) {
+            tokens[token].balance +=
+                ((stream.starts - stream.lastPaid) +
+                    (lastUpdate - stream.ends)) *
+                stream.amountPerSec;
+            streams[_id].redeemable =
+                (stream.ends - stream.starts) *
+                stream.amountPerSec;
+            streams[_id].lastPaid = 0;
+            tokens[token].totalPaidPerSec -= stream.amountPerSec;
+        } else if (
+            stream.starts > stream.lastPaid && lastUpdate >= stream.starts
         ) {
             tokens[token].balance +=
                 (stream.starts - stream.lastPaid) *
@@ -333,7 +360,15 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 (lastUpdate - stream.starts) *
                 stream.amountPerSec;
             streams[_id].lastPaid = lastUpdate;
-        } else if (stream.lastPaid != 0) {
+        } else if (lastUpdate >= stream.ends) {
+            tokens[token].balance +=
+                (lastUpdate - stream.ends) *
+                stream.amountPerSec;
+            streams[_id].redeemable +=
+                (stream.ends - stream.lastPaid) *
+                stream.amountPerSec;
+            streams[_id].lastPaid = 0;
+        } else {
             streams[_id].redeemable +=
                 (lastUpdate - stream.lastPaid) *
                 stream.amountPerSec;
@@ -354,12 +389,14 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address _token,
         address _to,
         uint208 _amountPerSec,
-        uint48 _starts
+        uint48 _starts,
+        uint48 _ends
     ) private returns (uint256 id) {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
         if (_to == address(0)) revert ZERO_ADDRESS();
-        if (block.timestamp > _starts) revert INVALID_START();
+        if (block.timestamp > _starts || _starts >= _ends)
+            revert INVALID_START();
 
         _updateToken(_token);
         if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
@@ -374,6 +411,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             token: _token,
             lastPaid: uint48(block.timestamp),
             starts: _starts,
+            ends: _ends,
             redeemable: 0
         });
 
