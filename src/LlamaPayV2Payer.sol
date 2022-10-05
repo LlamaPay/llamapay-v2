@@ -275,7 +275,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     }
 
     /// @notice resumes a stopped stream
-    /// @param _id token id 
+    /// @param _id token id
     function resumeStream(uint256 _id) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
@@ -292,7 +292,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         tokens[stream.token].totalPaidPerSec += stream.amountPerSec;
     }
 
-
     /// @notice burns an inactive and withdrawn stream
     /// @param _id token id
     function burnStream(uint256 _id) external {
@@ -307,6 +306,20 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (_id >= tokenId) revert INVALID_STREAM();
 
         _burn(_id);
+    }
+
+    /// @notice add address to whitelist
+    /// @param _toWhitelist address to whitelist
+    function approvePayerWhitelist(address _toWhitelist) external {
+        if (msg.sender != owner) revert NOT_OWNER();
+        payerWhitelists[_toWhitelist] = 1;
+    }
+
+    /// @notice remove address from whitelist
+    /// @param _toRemove address to remove
+    function revokePayerWhitelist(address _toRemove) external {
+        if (msg.sender != owner) revert NOT_OWNER();
+        payerWhitelists[_toRemove] = 0;
     }
 
     function _updateToken(address _token) private {
