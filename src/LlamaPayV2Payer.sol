@@ -24,6 +24,8 @@ error NOT_OWNER();
 error ZERO_ADDRESS();
 error NOT_CANCELLED_OR_REDEEMABLE();
 error INVALID_START();
+error INACTIVE_STREAM();
+error ACTIVE_STREAM();
 
 /// @title LlamaPayV2 Payer Contract
 /// @author nemusona
@@ -60,8 +62,33 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 id,
         address token,
         address to,
-        uint248 amountPerSec,
+        uint256 amountPerSec,
         uint48 starts
+    );
+    event CreateStreamWithReason(
+        uint256 id,
+        address token,
+        address to,
+        uint256 amountPerSec,
+        uint48 starts,
+        string reason
+    );
+    event CreateStreamWithheld(
+        uint256 id,
+        address token,
+        address to,
+        uint256 amountPerSec,
+        uint48 starts,
+        uint256 withheldPerSec
+    );
+    event CreateStreamWithheldWithReason(
+        uint256 id,
+        address token,
+        address to,
+        uint256 amountPerSec,
+        uint48 starts,
+        uint256 withheldPerSec,
+        string reason
     );
 
     constructor() ERC721("LlamaPay V2 Stream", "LLAMAPAY-V2-STREAM") {
@@ -137,11 +164,89 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         emit CreateStream(id, _token, _to, _amountPerSec, _starts);
     }
 
+    function createStreamWithReason(
+        address _token,
+        address _to,
+        uint208 _amountPerSec,
+        uint48 _starts,
+        string memory _reason
+    ) external {
+        uint256 id = _createStream(_token, _to, _amountPerSec, _starts);
+        emit CreateStreamWithReason(
+            id,
+            _token,
+            _to,
+            _amountPerSec,
+            _starts,
+            _reason
+        );
+    }
+
+    function createStreamWithheld(
+        address _token,
+        address _to,
+        uint208 _amountPerSec,
+        uint48 _starts,
+        uint256 _withheldPerSec
+    ) external {
+        uint256 id = _createStream(_token, _to, _amountPerSec, _starts);
+        emit CreateStreamWithheld(
+            id,
+            _token,
+            _to,
+            _amountPerSec,
+            _starts,
+            _withheldPerSec
+        );
+    }
+
+    function createStreamWithheldWithReason(
+        address _token,
+        address _to,
+        uint208 _amountPerSec,
+        uint48 _starts,
+        uint256 _withheldPerSec,
+        string memory _reason
+    ) external {
+        uint256 id = _createStream(_token, _to, _amountPerSec, _starts);
+        emit CreateStreamWithheldWithReason(
+            id,
+            _token,
+            _to,
+            _amountPerSec,
+            _starts,
+            _withheldPerSec,
+            _reason
+        );
+    }
+
+    function modifyStream(uint256 _id, uint256 _newAmountPerSec) external {
+        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
+            revert NOT_OWNER_OR_WHITELISTED();
+        Stream storage stream = streams[_id];
+        if (stream.lastPaid == 0) revert INACTIVE_STREAM();
+
+        _updateToken(stream.token);
+        Token storage token = tokens[stream.token];
+
+        streams[_id].redeemable +=
+            (token.lastUpdate - stream.lastPaid) *
+            stream.amountPerSec;
+        streams[_id].amountPerSec = _newAmountPerSec;
+        streams[_id].lastPaid = token.lastUpdate;
+
+        tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
+        unchecked {
+            tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
+        }
+    }
+
     function stopStream(uint256 _id) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-
         Stream storage stream = streams[_id];
+        if (stream.lastPaid == 0) revert INACTIVE_STREAM();
+
         _updateToken(stream.token);
 
         streams[_id].redeemable +=
@@ -157,8 +262,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function resumeStream(uint256 _id) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-
         Stream storage stream = streams[_id];
+        if (stream.lastPaid > 0) revert ACTIVE_STREAM();
 
         _updateToken(stream.token);
         if (block.timestamp > tokens[stream.token].lastUpdate)
