@@ -10,11 +10,12 @@
 - Withdraw certain amounts from stream
 - Whitelisting for withdrawals
 - Redirect withdrawals 
-- Automatic withdrawals through bot
-- Scheduled transfers through bot
 - Whitelisting other contracts to withdraw on behalf
 
 ## WIP features
 - DCA
 - Yield
 - Gasless withdrawals through bot
+- Automatic withdrawals through bot
+- Scheduled transfers through bot
+- Undercollateralized fixed streams (going through testing)
