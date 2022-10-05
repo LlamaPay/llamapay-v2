@@ -160,6 +160,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         emit Withdraw(_id, token, to, _amount);
     }
 
+    /// @notice creates stream
+    /// @param _token token
+    /// @param _to recipient
+    /// @param _amountPerSec amount per sec (20 decimals)
+    /// @param _starts stream to start
+    /// @param _ends stream to end
     function createStream(
         address _token,
         address _to,
@@ -171,6 +177,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         emit CreateStream(id, _token, _to, _amountPerSec, _starts, _ends);
     }
 
+    /// @notice creates stream with a reason string
+    /// @param _token token
+    /// @param _to recipient
+    /// @param _amountPerSec amount per sec (20 decimals)
+    /// @param _starts stream to start
+    /// @param _ends stream to end
+    /// @param _reason reason
     function createStreamWithReason(
         address _token,
         address _to,
@@ -191,6 +204,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         );
     }
 
+    /// @notice creates stream with amount withheld
+    /// @param _token token
+    /// @param _to recipient
+    /// @param _amountPerSec amount per sec (20 decimals)
+    /// @param _starts stream to start
+    /// @param _ends stream to end
+    /// @param _withheldPerSec withheld per sec (20 decimals)
     function createStreamWithheld(
         address _token,
         address _to,
@@ -211,6 +231,14 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         );
     }
 
+    /// @notice creates stream with a reason string and withheld
+    /// @param _token token
+    /// @param _to recipient
+    /// @param _amountPerSec amount per sec (20 decimals)
+    /// @param _starts stream to start
+    /// @param _ends stream to end
+    /// @param _withheldPerSec withheld per sec (20 decimals)
+    /// @param _reason reason
     function createStreamWithheldWithReason(
         address _token,
         address _to,
@@ -233,6 +261,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         );
     }
 
+    /// @notice modifies current stream
+    /// @param _id token id
+    /// @param _newAmountPerSec modified amount per sec (20 decimals)
     function modifyStream(uint256 _id, uint208 _newAmountPerSec) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
@@ -255,6 +286,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         }
     }
 
+    /// @notice pauses current stream
+    /// @param _id token id
     function stopStream(uint256 _id) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
@@ -322,6 +355,66 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         payerWhitelists[_toRemove] = 0;
     }
 
+    /// @notice amount withdrawable from stream
+    /// @param _id token id
+    /// @return withdrawableAmount wihtdrawable amount (20 decimals)
+    /// @return debt debt owed by payer
+    /// @return lastUpdate last payer update
+    function withdrawable(uint256 _id)
+        public
+        view
+        returns (
+            uint256 withdrawableAmount,
+            uint256 debt,
+            uint256 lastUpdate
+        )
+    {
+        Stream storage stream = streams[_id];
+        Token storage token = tokens[stream.token];
+
+        uint256 totalStreamed = (block.timestamp - token.lastUpdate) *
+            token.totalPaidPerSec;
+
+        if (token.balance >= totalStreamed) {
+            lastUpdate = block.timestamp;
+        } else {
+            lastUpdate =
+                token.lastUpdate +
+                (token.balance / token.totalPaidPerSec);
+        }
+
+        if (stream.lastPaid == 0) {
+            withdrawableAmount = stream.redeemable;
+        } else if (
+            stream.starts > stream.lastPaid &&
+            lastUpdate >= stream.starts &&
+            lastUpdate >= stream.ends
+        ) {
+            withdrawableAmount =
+                (stream.ends - stream.starts) *
+                stream.amountPerSec;
+        } else if (
+            stream.starts > stream.lastPaid && lastUpdate >= stream.starts
+        ) {
+            withdrawableAmount =
+                (lastUpdate - stream.starts) *
+                stream.amountPerSec;
+            debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
+        } else if (lastUpdate >= stream.ends) {
+            withdrawableAmount =
+                stream.redeemable +
+                ((stream.ends - stream.lastPaid) * stream.amountPerSec);
+        } else {
+            withdrawableAmount =
+                stream.redeemable +
+                (lastUpdate - stream.lastPaid) *
+                stream.amountPerSec;
+            debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
+        }
+    }
+
+    /// @notice updates token balances
+    /// @param _token token to update
     function _updateToken(address _token) private {
         Token storage token = tokens[_token];
         uint256 streamed = (block.timestamp - token.lastUpdate) *
@@ -340,6 +433,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         }
     }
 
+    /// @notice withdraw
+    /// @param _id token id
+    /// @param _amount amount to withdraw (native decimals)
     function _withdraw(uint256 _id, uint256 _amount)
         private
         returns (address token, address to)
@@ -427,6 +523,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         }
     }
 
+    /// @notice create stream
+    /// @param _token token
+    /// @param _to recipient
+    /// @param _amountPerSec amount per sec (20 decimals)
+    /// @param _starts stream to start
+    /// @param _ends stream to end
     function _createStream(
         address _token,
         address _to,
