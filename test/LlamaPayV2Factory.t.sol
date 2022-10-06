@@ -15,25 +15,13 @@ contract LlamaPayV2FactoryTest is Test {
         llamaPayV2Factory = new LlamaPayV2Factory();
     }
 
-    function testCreatePayer() public {
-        vm.prank(alice);
-        llamaPayV2Factory.createLlamaPayContract();
-    }
-
-    function testCannotCreateMultiplePayerContracts() public {
-        vm.prank(alice);
-        llamaPayV2Factory.createLlamaPayContract();
-        vm.prank(alice);
-        vm.expectRevert();
-        llamaPayV2Factory.createLlamaPayContract();
-    }
-
-    function testCreate2IsCorrect() public {
+    function testCreatePayer() external {
         vm.prank(alice);
         address payerContract = address(
             llamaPayV2Factory.createLlamaPayContract()
         );
-        (address predictedAddress, bool deployed) = llamaPayV2Factory.calculateLlamaPayAddress(alice);
+        (address predictedAddress, bool deployed) = llamaPayV2Factory
+            .calculateLlamaPayAddress(alice);
         assertEq(payerContract, predictedAddress);
         assertEq(deployed, true);
     }
