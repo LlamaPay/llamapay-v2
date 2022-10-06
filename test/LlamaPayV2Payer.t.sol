@@ -112,7 +112,7 @@ contract LlamaPayV2PayerTest is Test {
             1000
         );
         vm.warp(101);
-        llamaPayV2Payer.modifyStream(0, 2 * 1e20);
+        llamaPayV2Payer.modifyStream(0, 2 * 1e20, 1000);
 
         (
             uint208 amountPerSec,
@@ -364,6 +364,169 @@ contract LlamaPayV2PayerTest is Test {
         (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
         assertEq(redeemable, 500 * 1e20);
         assertEq(balance, 9500 * 1e20);
+        vm.stopPrank();
+    }
+
+    function testCantWithdrawVestedAmounts() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            10000000000
+        );
+        vm.warp(9500);
+        /// Will revert because vested 9500 LLAMA and trying to withdraw 1000 LLAMA.
+        /// Beginning balance is only 10000
+        vm.expectRevert();
+        llamaPayV2Payer.withdrawPayer(address(llamaToken), 1000 * 1e18);
+        vm.stopPrank();
+    }
+
+    function testCantWithdrawIfNotWhitelisted() external {
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("NOT_OWNER_OR_WHITELISTED()"));
+        llamaPayV2Payer.withdrawPayer(address(llamaToken), 1 * 1e18);
+    }
+
+    function testCantWithdrawMoreThanAvailable() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            1000000
+        );
+        vm.warp(501);
+        vm.expectRevert();
+        llamaPayV2Payer.withdraw(0, 1000 * 1e18);
+        vm.stopPrank();
+    }
+
+    function testCantModifyUnlessWhitelisted() external {
+        vm.prank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            1000000
+        );
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("NOT_OWNER_OR_WHITELISTED()"));
+        llamaPayV2Payer.modifyStream(0, 200 * 1e20, 1000000);
+    }
+
+    function testCantStopIfStopped() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            1000000
+        );
+        llamaPayV2Payer.stopStream(0);
+        vm.expectRevert(abi.encodeWithSignature("INACTIVE_STREAM()"));
+        llamaPayV2Payer.stopStream(0);
+        vm.stopPrank();
+    }
+
+    function testCantResumeActiveStream() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            1000000
+        );
+        vm.expectRevert(abi.encodeWithSignature("ACTIVE_STREAM()"));
+        llamaPayV2Payer.resumeStream(0);
+        vm.stopPrank();
+    }
+
+    function testCantResumeAfterStreamEnded() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            100
+        );
+        llamaPayV2Payer.stopStream(0);
+        vm.warp(100);
+        vm.expectRevert(abi.encodeWithSignature("INVALID_START()"));
+        llamaPayV2Payer.resumeStream(0);
+        vm.stopPrank();
+    }
+
+    function testCantResumeIfInDebt() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            15000
+        );
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            15000
+        );
+        llamaPayV2Payer.stopStream(1);
+        vm.warp(11000);
+        vm.expectRevert(abi.encodeWithSignature("PAYER_IN_DEBT()"));
+        llamaPayV2Payer.resumeStream(1);
+        vm.stopPrank();
+    }
+
+    function testCantBurnIfActive() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            15000
+        );
+        vm.expectRevert(
+            abi.encodeWithSignature("NOT_CANCELLED_OR_REDEEMABLE()")
+        );
+        llamaPayV2Payer.burnStream(0);
+        vm.stopPrank();
+    }
+
+    function testCantBurnIfRedeemable() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            15000
+        );
+        vm.warp(1000);
+        llamaPayV2Payer.stopStream(0);
+        vm.expectRevert(
+            abi.encodeWithSignature("NOT_CANCELLED_OR_REDEEMABLE()")
+        );
+        llamaPayV2Payer.burnStream(0);
         vm.stopPrank();
     }
 }

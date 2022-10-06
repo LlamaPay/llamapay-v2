@@ -18,12 +18,12 @@ interface Factory {
 }
 
 error NOT_OWNER_OR_WHITELISTED();
-error AMOUNT_NOT_AVAILABLE();
 error PAYER_IN_DEBT();
 error NOT_OWNER();
 error ZERO_ADDRESS();
 error NOT_CANCELLED_OR_REDEEMABLE();
 error INVALID_START();
+error INVALID_END();
 error INACTIVE_STREAM();
 error ACTIVE_STREAM();
 error INVALID_STREAM();
@@ -264,26 +264,26 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice modifies current stream
     /// @param _id token id
     /// @param _newAmountPerSec modified amount per sec (20 decimals)
-    function modifyStream(uint256 _id, uint208 _newAmountPerSec) external {
+    function modifyStream(
+        uint256 _id,
+        uint208 _newAmountPerSec,
+        uint48 _newEnd
+    ) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        Stream storage stream = streams[_id];
-        if (stream.lastPaid == 0) revert INACTIVE_STREAM();
         if (_id >= tokenId) revert INVALID_STREAM();
+        Stream storage stream = streams[_id];
 
-        _updateToken(stream.token);
-        Token storage token = tokens[stream.token];
+        _updateStream(_id);
+
+        if (streams[_id].lastPaid > _newEnd) revert INVALID_END();
 
         tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
         unchecked {
             tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
+            streams[_id].amountPerSec = _newAmountPerSec;
+            streams[_id].ends = _newEnd;
         }
-
-        streams[_id].redeemable +=
-            (token.lastUpdate - stream.lastPaid) *
-            stream.amountPerSec;
-        streams[_id].amountPerSec = _newAmountPerSec;
-        streams[_id].lastPaid = token.lastUpdate;
     }
 
     /// @notice pauses current stream
@@ -291,9 +291,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function stopStream(uint256 _id) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
+        if (_id >= tokenId) revert INVALID_STREAM();
         Stream storage stream = streams[_id];
         if (stream.lastPaid == 0) revert INACTIVE_STREAM();
-        if (_id >= tokenId) revert INVALID_STREAM();
 
         _updateStream(_id);
 
@@ -308,10 +308,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function resumeStream(uint256 _id) external {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        Stream storage stream = streams[_id];
-        if (stream.lastPaid > 0) revert ACTIVE_STREAM();
-        if (block.timestamp >= stream.ends) revert INVALID_START();
         if (_id >= tokenId) revert INVALID_STREAM();
+        Stream storage stream = streams[_id];
+        if (block.timestamp >= stream.ends) revert INVALID_START();
+        if (stream.lastPaid > 0) revert ACTIVE_STREAM();
 
         _updateToken(stream.token);
         if (block.timestamp > tokens[stream.token].lastUpdate)
