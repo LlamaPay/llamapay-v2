@@ -7,8 +7,12 @@ import "../src/LlamaPayV2Factory.sol";
 
 contract DeployFactoryScript is Script {
     function run() external {
-        vm.startBroadcast();
-        LlamaPayV2Factory factory = new LlamaPayV2Factory{salt: bytes32("llamao")}();
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        vm.startBroadcast(deployerPrivateKey);
+        LlamaPayV2Factory factory = new LlamaPayV2Factory{
+            salt: bytes32("llamao")
+        }();
+        factory.createLlamaPayContract();
         vm.stopBroadcast();
     }
 }
