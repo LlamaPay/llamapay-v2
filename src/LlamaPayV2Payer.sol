@@ -295,11 +295,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (stream.lastPaid == 0) revert INACTIVE_STREAM();
         if (_id >= tokenId) revert INVALID_STREAM();
 
-        _updateToken(stream.token);
-
-        streams[_id].redeemable +=
-            (tokens[stream.token].lastUpdate - stream.lastPaid) *
-            stream.amountPerSec;
+        _updateStream(_id);
 
         unchecked {
             streams[_id].lastPaid = 0;
@@ -353,6 +349,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function revokePayerWhitelist(address _toRemove) external {
         if (msg.sender != owner) revert NOT_OWNER();
         payerWhitelists[_toRemove] = 0;
+    }
+
+    /// @notice manually update stream
+    /// @param _id token id
+    function updateStream(uint256 _id) external {
+        _updateStream(_id);
     }
 
     /// @notice amount withdrawable from stream
