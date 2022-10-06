@@ -239,4 +239,26 @@ contract LlamaPayV2PayerTest is Test {
         assertEq(llamaToken.balanceOf(alice), 50 * 1e18);
         vm.stopPrank();
     }
+
+    function testWithdrawalWhitelist() external {
+        vm.startPrank(alice);
+        vm.warp(1);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            1,
+            1000
+        );
+        vm.warp(101);
+        llamaPayV2Factory.approveWithdrawalWhitelist(bob);
+        vm.stopPrank();
+        vm.prank(bob);
+        llamaPayV2Payer.withdraw(0, 50 * 1e18);
+        vm.prank(alice);
+        llamaPayV2Factory.revokeWithdrawalWhitelist(bob);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("NOT_OWNER_OR_WHITELISTED()"));
+        llamaPayV2Payer.withdraw(0, 50 * 1e18);
+    }
 }
