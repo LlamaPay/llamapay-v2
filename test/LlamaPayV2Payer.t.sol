@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0
+// SPDX-License-Identifier: UNLICENSED
 
 pragma solidity ^0.8.17;
 
@@ -543,7 +543,9 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(51);
         llamaPayV2Payer.updateStream(0);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
-        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
+        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
+            0
+        );
         assertEq(balance, 10000 * 1e20);
         assertEq(redeemable, 0);
         assertEq(lastPaid, 51);
