@@ -345,7 +345,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _toRemove address to remove
     function revokePayerWhitelist(address _toRemove) external {
         if (msg.sender != owner) revert NOT_OWNER();
-        
+
         payerWhitelists[_toRemove] = 0;
     }
 
@@ -380,7 +380,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 token.lastUpdate +
                 (token.balance / token.totalPaidPerSec);
         }
-        if (stream.lastPaid == 0) {
+        if (stream.lastPaid == 0 || lastUpdate > stream.starts) {
             withdrawableAmount = stream.redeemable;
         } else if (
             stream.starts > stream.lastPaid &&
@@ -511,6 +511,15 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 streams[_id].lastPaid = 0;
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
             }
+        } else if (stream.starts > lastUpdate) {
+            /// Stream hasn't started yet and updatetoken is called
+            /// Refund excess stream to payer
+            tokens[stream.token].balance +=
+                (lastUpdate - stream.lastPaid) *
+                stream.amountPerSec;
+            unchecked {
+                streams[_id].lastPaid = lastUpdate;
+            }
         } else {
             /// If stream still running then do normal calc
             streams[_id].redeemable +=
@@ -542,7 +551,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             revert INVALID_START();
         _updateToken(_token);
         if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
-        
+
         tokens[_token].totalPaidPerSec += _amountPerSec;
         id = tokenId;
         _safeMint(_to, id);
