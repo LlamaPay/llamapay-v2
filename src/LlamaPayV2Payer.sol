@@ -117,13 +117,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _amount amount (native token decimal)
     function deposit(address _token, uint256 _amount) external {
         ERC20 token = ERC20(_token);
-
         // Stores token divisor if it is the first time being deposited
         // Saves on having to call decimals() for conversions
         if (tokens[_token].divisor == 0) {
-            tokens[_token].divisor = uint208(10**(20 - token.decimals()));
+            unchecked {
+                tokens[_token].divisor = uint208(10**(20 - token.decimals()));
+            }
         }
-
         tokens[_token].balance += _amount * tokens[_token].divisor;
         token.safeTransferFrom(msg.sender, address(this), _amount);
         emit Deposit(_token, msg.sender, _amount);
@@ -137,16 +137,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             revert NOT_OWNER_OR_WHITELISTED();
 
         _updateToken(_token);
-
         uint256 toDeduct;
         unchecked {
             toDeduct = _amount * tokens[_token].divisor;
         }
         /// Will revert if not enough after updating Token struct
         tokens[_token].balance -= toDeduct;
-
         ERC20(_token).safeTransfer(msg.sender, _amount);
-
         emit WithdrawPayer(_token, msg.sender, _amount);
     }
 
@@ -155,7 +152,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _amount amount (native decimals)
     function withdraw(uint256 _id, uint256 _amount) external {
         (address token, address to) = _withdraw(_id, _amount);
-
         ERC20(token).safeTransfer(to, _amount);
         emit Withdraw(_id, token, to, _amount);
     }
@@ -272,11 +268,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
         if (_id >= tokenId) revert INVALID_STREAM();
-        Stream storage stream = streams[_id];
 
         _updateStream(_id);
-
-        if (streams[_id].lastPaid > _newEnd) revert INVALID_END();
+        Stream storage stream = streams[_id];
+        if (stream.lastPaid > _newEnd) revert INVALID_END();
 
         tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
         unchecked {
@@ -296,7 +291,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (stream.lastPaid == 0) revert INACTIVE_STREAM();
 
         _updateStream(_id);
-
         unchecked {
             streams[_id].lastPaid = 0;
             tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
@@ -317,7 +311,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (block.timestamp > tokens[stream.token].lastUpdate)
             revert PAYER_IN_DEBT();
 
-        streams[_id].lastPaid = uint48(block.timestamp);
+        unchecked {
+            streams[_id].lastPaid = uint48(block.timestamp);
+        }
         tokens[stream.token].totalPaidPerSec += stream.amountPerSec;
     }
 
@@ -341,6 +337,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _toWhitelist address to whitelist
     function approvePayerWhitelist(address _toWhitelist) external {
         if (msg.sender != owner) revert NOT_OWNER();
+
         payerWhitelists[_toWhitelist] = 1;
     }
 
@@ -348,6 +345,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _toRemove address to remove
     function revokePayerWhitelist(address _toRemove) external {
         if (msg.sender != owner) revert NOT_OWNER();
+        
         payerWhitelists[_toRemove] = 0;
     }
 
@@ -373,10 +371,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     {
         Stream storage stream = streams[_id];
         Token storage token = tokens[stream.token];
-
         uint256 totalStreamed = (block.timestamp - token.lastUpdate) *
             token.totalPaidPerSec;
-
         if (token.balance >= totalStreamed) {
             lastUpdate = block.timestamp;
         } else {
@@ -384,7 +380,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 token.lastUpdate +
                 (token.balance / token.totalPaidPerSec);
         }
-
         if (stream.lastPaid == 0) {
             withdrawableAmount = stream.redeemable;
         } else if (
@@ -413,7 +408,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 stream.amountPerSec;
             debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
         }
-
         withdrawableAmount = withdrawableAmount / token.divisor;
     }
 
@@ -423,7 +417,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         Token storage token = tokens[_token];
         uint256 streamed = (block.timestamp - token.lastUpdate) *
             token.totalPaidPerSec;
-
         unchecked {
             if (token.balance >= streamed) {
                 tokens[_token].balance -= streamed;
@@ -455,7 +448,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
         token = streams[_id].token;
         _updateStream(_id);
-
         /// Reverts if payee is going to rug
         streams[_id].redeemable -= _amount * tokens[token].divisor;
 
@@ -471,7 +463,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         Stream storage stream = streams[_id];
         _updateToken(stream.token);
         uint48 lastUpdate = tokens[stream.token].lastUpdate;
-
         /// Literally do nothing if stream is inactive
         if (stream.lastPaid == 0) {
             /// NOTHING
@@ -549,15 +540,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (_to == address(0)) revert ZERO_ADDRESS();
         if (block.timestamp > _starts || _starts >= _ends)
             revert INVALID_START();
-
         _updateToken(_token);
         if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
-
+        
         tokens[_token].totalPaidPerSec += _amountPerSec;
-
         id = tokenId;
         _safeMint(_to, id);
-
         streams[id] = Stream({
             amountPerSec: _amountPerSec,
             token: _token,
@@ -566,7 +554,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             ends: _ends,
             redeemable: 0
         });
-
         unchecked {
             tokenId++;
         }
