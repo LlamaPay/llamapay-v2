@@ -50,8 +50,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 redeemable;
     }
 
-    address public immutable factory;
-    address public immutable owner;
+    address public factory;
+    address public owner;
     uint256 public tokenId;
 
     mapping(address => Token) public tokens;
@@ -266,9 +266,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint208 _newAmountPerSec,
         uint48 _newEnd
     ) external {
+        if (_id >= tokenId) revert INVALID_STREAM();
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        if (_id >= tokenId) revert INVALID_STREAM();
 
         _updateStream(_id);
         Stream storage stream = streams[_id];
@@ -285,12 +285,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice pauses current stream
     /// @param _id token id
     function stopStream(uint256 _id) external {
+        if (_id >= tokenId) revert INVALID_STREAM();
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        if (_id >= tokenId) revert INVALID_STREAM();
-        Stream storage stream = streams[_id];
-    
+
         _updateStream(_id);
+        Stream storage stream = streams[_id];
         if (stream.lastPaid == 0) revert INACTIVE_STREAM();
 
         unchecked {
@@ -302,9 +302,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice resumes a stopped stream
     /// @param _id token id
     function resumeStream(uint256 _id) external {
+        if (_id >= tokenId) revert INVALID_STREAM();
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        if (_id >= tokenId) revert INVALID_STREAM();
         Stream storage stream = streams[_id];
         if (block.timestamp >= stream.ends) revert INVALID_START();
         if (stream.lastPaid > 0) revert ACTIVE_STREAM();
@@ -322,6 +322,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice burns an inactive and withdrawn stream
     /// @param _id token id
     function burnStream(uint256 _id) external {
+        if (_id >= tokenId) revert INVALID_STREAM();
         if (
             msg.sender != owner &&
             payerWhitelists[msg.sender] != 1 &&
@@ -330,7 +331,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         Stream storage stream = streams[_id];
         if (stream.redeemable > 0 || stream.lastPaid != 0)
             revert NOT_CANCELLED_OR_REDEEMABLE();
-        if (_id >= tokenId) revert INVALID_STREAM();
 
         _burn(_id);
     }
@@ -354,6 +354,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice manually update stream
     /// @param _id token id
     function updateStream(uint256 _id) external {
+        if (
+            msg.sender != owner &&
+            payerWhitelists[msg.sender] != 1 &&
+            msg.sender != ownerOf(_id)
+        ) revert NOT_OWNER_OR_WHITELISTED();
         _updateStream(_id);
     }
 
