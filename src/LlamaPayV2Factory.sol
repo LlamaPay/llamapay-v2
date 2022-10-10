@@ -11,10 +11,10 @@ contract LlamaPayV2Factory is BoringBatchable {
     bytes32 constant INIT_CODEHASH =
         keccak256(type(LlamaPayV2Payer).creationCode);
 
-    uint256 public ownerCount;
+    uint256 public amtOfPayers;
     address public param;
 
-    mapping(uint256 => address) public ownerContracts;
+    mapping(uint256 => address) public payerContracts;
     mapping(address => mapping(address => uint256)) public withdrawalWhitelists;
     mapping(address => address) public redirects;
 
@@ -26,9 +26,9 @@ contract LlamaPayV2Factory is BoringBatchable {
         llamapay = address(
             new LlamaPayV2Payer{salt: bytes32(uint256(uint160(msg.sender)))}()
         );
-        ownerContracts[ownerCount] = llamapay;
+        payerContracts[amtOfPayers] = llamapay;
         unchecked {
-            ownerCount++;
+            amtOfPayers++;
         }
         emit LlamaPayContractCreated(msg.sender, llamapay);
     }

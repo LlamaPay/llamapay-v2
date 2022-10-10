@@ -31,21 +31,6 @@ contract LlamaPayV2PayerTest is Test {
         vm.stopPrank();
     }
 
-    // (
-    //     uint256 balance,
-    //     uint256 totalPaidPerSec,
-    //     uint208 divisor,
-    //     uint48 lastUpdate
-    // ) = llamaPayV2Payer.tokens(address(llamaToken));
-    // (
-    //     uint208 amountPerSec,
-    //     uint48 lastPaid,
-    //     address token,
-    //     uint48 starts,
-    //     uint48 ends,
-    //     uint256 redeemable
-    // ) = llamaPayV2Payer.streams(0);
-
     function testDeposit() public {
         llamaToken.mint(alice, 10000 * 1e18);
         vm.startPrank(alice);

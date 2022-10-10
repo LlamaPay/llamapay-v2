@@ -103,6 +103,17 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         owner = Factory(msg.sender).param();
     }
 
+    modifier onlyOwnerAndWhitelisted() {
+        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
+            revert NOT_OWNER_OR_WHITELISTED();
+        _;
+    }
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NOT_OWNER();
+        _;
+    }
+
     function tokenURI(uint256 id)
         public
         view
@@ -133,10 +144,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice withdraw tokens that have not been streamed yet
     /// @param _token token
     /// @param _amount amount (native token decimals)
-    function withdrawPayer(address _token, uint256 _amount) external {
-        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
-            revert NOT_OWNER_OR_WHITELISTED();
-
+    function withdrawPayer(address _token, uint256 _amount)
+        external
+        onlyOwnerAndWhitelisted
+    {
         _updateToken(_token);
         uint256 toDeduct;
         unchecked {
@@ -265,10 +276,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 _id,
         uint208 _newAmountPerSec,
         uint48 _newEnd
-    ) external {
+    ) external onlyOwnerAndWhitelisted {
         if (_id >= tokenId) revert INVALID_STREAM();
-        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
-            revert NOT_OWNER_OR_WHITELISTED();
 
         _updateStream(_id);
         Stream storage stream = streams[_id];
@@ -284,10 +293,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     /// @notice pauses current stream
     /// @param _id token id
-    function stopStream(uint256 _id) external {
+    function stopStream(uint256 _id) external onlyOwnerAndWhitelisted {
         if (_id >= tokenId) revert INVALID_STREAM();
-        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
-            revert NOT_OWNER_OR_WHITELISTED();
 
         _updateStream(_id);
         Stream storage stream = streams[_id];
@@ -301,10 +308,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     /// @notice resumes a stopped stream
     /// @param _id token id
-    function resumeStream(uint256 _id) external {
+    function resumeStream(uint256 _id) external onlyOwnerAndWhitelisted {
         if (_id >= tokenId) revert INVALID_STREAM();
-        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
-            revert NOT_OWNER_OR_WHITELISTED();
         Stream storage stream = streams[_id];
         if (block.timestamp >= stream.ends) revert INVALID_START();
         if (stream.lastPaid > 0) revert ACTIVE_STREAM();
@@ -337,28 +342,19 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     /// @notice add address to whitelist
     /// @param _toWhitelist address to whitelist
-    function approvePayerWhitelist(address _toWhitelist) external {
-        if (msg.sender != owner) revert NOT_OWNER();
-
+    function approvePayerWhitelist(address _toWhitelist) external onlyOwner {
         payerWhitelists[_toWhitelist] = 1;
     }
 
     /// @notice remove address from whitelist
     /// @param _toRemove address to remove
-    function revokePayerWhitelist(address _toRemove) external {
-        if (msg.sender != owner) revert NOT_OWNER();
-
+    function revokePayerWhitelist(address _toRemove) external onlyOwner {
         payerWhitelists[_toRemove] = 0;
     }
 
     /// @notice manually update stream
     /// @param _id token id
-    function updateStream(uint256 _id) external {
-        if (
-            msg.sender != owner &&
-            payerWhitelists[msg.sender] != 1 &&
-            msg.sender != ownerOf(_id)
-        ) revert NOT_OWNER_OR_WHITELISTED();
+    function updateStream(uint256 _id) external onlyOwnerAndWhitelisted {
         _updateStream(_id);
     }
 
@@ -569,9 +565,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint208 _amountPerSec,
         uint48 _starts,
         uint48 _ends
-    ) private returns (uint256 id) {
-        if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
-            revert NOT_OWNER_OR_WHITELISTED();
+    ) private onlyOwnerAndWhitelisted returns (uint256 id) {
         if (_to == address(0)) revert ZERO_ADDRESS();
         if (block.timestamp > _starts || _starts >= _ends)
             revert INVALID_START();
