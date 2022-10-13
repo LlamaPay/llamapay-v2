@@ -90,6 +90,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 withheldPerSec,
         string reason
     );
+    event AddPayerWhitelist(address whitelisted);
+    event RemovePayerWhitelist(address removed);
+    event AddRedirectStream(uint256 id, address redirected);
+    event RemoveRedirectStream(uint256 id);
+    event AddStreamWhitelist(uint256 id, address whitelisted);
+    event RemoveStreamWhitelist(uint256 id, address removed);
 
     constructor() ERC721("LlamaPay V2 Stream", "LLAMAPAY-V2-STREAM") {
         owner = Factory(msg.sender).param();
@@ -365,12 +371,14 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _toAdd address to whitelist
     function addPayerWhitelist(address _toAdd) external onlyOwner {
         payerWhitelists[_toAdd] = 1;
+        emit AddPayerWhitelist(_toAdd);
     }
 
     /// @notice remove address to payer whitelist
     /// @param _toRemove address to remove from whitelist
     function removePayerWhitelist(address _toRemove) external onlyOwner {
         payerWhitelists[_toRemove] = 0;
+        emit RemovePayerWhitelist(_toRemove);
     }
 
     /// @notice add redirect to stream
@@ -380,6 +388,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[_id] = _redirectTo;
+        emit AddRedirectStream(_id, _redirectTo);
     }
 
     /// @notice remove redirect to stream
@@ -388,6 +397,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[_id] = address(0);
+        emit RemoveRedirectStream(_id);
     }
 
     /// @notice add whitelist to stream
@@ -397,6 +407,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         streamWhitelists[_id][_toAdd] = 1;
+        emit AddStreamWhitelist(_id, _toAdd);
     }
 
     /// @notice remove whitelist to stream
@@ -406,6 +417,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         streamWhitelists[_id][_toRemove] = 0;
+        emit RemoveStreamWhitelist(_id, _toRemove);
     }
 
     /// @notice create stream
