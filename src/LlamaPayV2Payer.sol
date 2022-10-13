@@ -287,7 +287,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         );
     }
 
-    /// @notice modifies current stream (WIPES OUT PAYER DEBT)
+    /// @notice modifies current stream (WIPES OUT PAYER DEBT AND RESTARTS STREAM)
     /// @param _id token id
     /// @param _newAmountPerSec modified amount per sec (20 decimals)
     /// @param _newEnd new end time
@@ -304,7 +304,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
         tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
         unchecked {
-            tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
+            /// Prevents incorrect totalPaidPerSec calculation if stream is inactive
+            if (stream.lastPaid > 0) {
+                tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
+            }
             streams[_id].amountPerSec = _newAmountPerSec;
             streams[_id].ends = _newEnd;
             streams[_id].lastPaid = uint48(block.timestamp);
@@ -355,7 +358,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             msg.sender != ownerOf(_id)
         ) revert NOT_OWNER_OR_WHITELISTED();
         Stream storage stream = streams[_id];
-        if (stream.redeemable > 0 || stream.lastPaid != 0)
+        /// Prevents somebody from burning an active stream or a stream with balance in it
+        if (stream.redeemable > 0 || stream.lastPaid > 0)
             revert STREAM_ACTIVE_OR_REDEEMABLE();
 
         _burn(_id);
@@ -440,7 +444,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
         uint256 owed;
         if (block.timestamp > _starts) {
+            /// Calculates amount streamed from start to stream creation
             owed = (block.timestamp - _starts) * _amountPerSec;
+            /// Will revert if cannot pay owed balance
             tokens[_token].balance -= owed;
         }
 
@@ -464,13 +470,16 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _token token to update
     function _updateToken(address _token) private {
         Token storage token = tokens[_token];
+        /// Streamed from last update to called
         uint256 streamed = (block.timestamp - token.lastUpdate) *
             token.totalPaidPerSec;
         unchecked {
             if (token.balance >= streamed) {
+                /// If enough to pay owed then deduct from balance and update to current timestamp
                 tokens[_token].balance -= streamed;
                 tokens[_token].lastUpdate = uint48(block.timestamp);
             } else {
+                /// If not enough then get remainder paying as much as possible then calculating and adding time paid
                 tokens[_token].balance = token.balance % token.totalPaidPerSec;
                 tokens[_token].lastUpdate += uint48(
                     token.balance / token.totalPaidPerSec
