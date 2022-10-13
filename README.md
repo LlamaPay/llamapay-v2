@@ -11,6 +11,7 @@
 - Whitelisting for withdrawals
 - Redirect withdrawals 
 - Whitelisting other contracts to withdraw on behalf
+- Undercollateralized fixed streams
 
 ## WIP features
 - DCA
@@ -18,4 +19,3 @@
 - Gasless withdrawals through bot
 - Automatic withdrawals through bot
 - Scheduled transfers through bot
-- Undercollateralized fixed streams (going through testing)
