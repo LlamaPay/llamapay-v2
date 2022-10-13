@@ -499,7 +499,7 @@ contract LlamaPayV2PayerTest is Test {
 
     function testRedirect() external {
         vm.startPrank(alice);
-        vm.warp(1);
+        vm.warp(11);
         llamaPayV2Payer.createStream(
             address(llamaToken),
             alice,
@@ -511,6 +511,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(101);
         llamaPayV2Payer.withdraw(0, 50 * 1e18);
         assertEq(llamaToken.balanceOf(bob), 50 * 1e18);
+        vm.warp(151);
         llamaPayV2Payer.removeRedirectStream(0);
         llamaPayV2Payer.withdraw(0, 50 * 1e18);
         assertEq(llamaToken.balanceOf(alice), 50 * 1e18);

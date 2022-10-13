@@ -5,8 +5,6 @@ pragma solidity ^0.8.17;
 import "./LlamaPayV2Payer.sol";
 import "./BoringBatchable.sol";
 
-error AlreadyDeployed();
-
 contract LlamaPayV2Factory is BoringBatchable {
     bytes32 constant INIT_CODEHASH =
         keccak256(type(LlamaPayV2Payer).creationCode);
