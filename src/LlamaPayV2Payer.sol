@@ -50,6 +50,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     mapping(address => uint256) public payerWhitelists;
     mapping(uint256 => address) public redirects;
     mapping(uint256 => mapping(address => uint256)) public streamWhitelists;
+    mapping(uint256 => uint256) public debts;
 
     event Deposit(address token, address from, uint256 amount);
     event WithdrawPayer(address token, address to, uint256 amount);
@@ -287,7 +288,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         );
     }
 
-    /// @notice modifies current stream (WIPES OUT PAYER DEBT AND RESTARTS STREAM)
+    /// @notice modifies current stream (RESTARTS STREAM)
     /// @param _id token id
     /// @param _newAmountPerSec modified amount per sec (20 decimals)
     /// @param _newEnd new end time
@@ -307,6 +308,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             /// Prevents incorrect totalPaidPerSec calculation if stream is inactive
             if (stream.lastPaid > 0) {
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
+                uint256 lastUpdate = tokens[stream.token].lastUpdate;
+                /// Track debt if payer is in debt
+                if (block.timestamp > lastUpdate) {
+                    debts[_id] +=
+                        (block.timestamp - lastUpdate) *
+                        stream.amountPerSec;
+                }
             }
             streams[_id].amountPerSec = _newAmountPerSec;
             streams[_id].ends = _newEnd;
@@ -316,7 +324,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     /// @notice Stops current stream
     /// @param _id token id
-    function stopStream(uint256 _id) external onlyOwnerAndWhitelisted {
+    function stopStream(uint256 _id, bool _payDebt)
+        external
+        onlyOwnerAndWhitelisted
+    {
         if (_id >= nextTokenId) revert INVALID_STREAM();
 
         _updateStream(_id);
@@ -324,6 +335,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (stream.lastPaid == 0) revert INACTIVE_STREAM();
 
         unchecked {
+            uint256 lastUpdate = tokens[stream.token].lastUpdate;
+            if (_payDebt && block.timestamp > lastUpdate) {
+                debts[_id] +=
+                    (block.timestamp - lastUpdate) *
+                    stream.amountPerSec;
+            }
             streams[_id].lastPaid = 0;
             tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
         }
@@ -494,7 +511,23 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Update Token info to get last update
         Stream storage stream = streams[_id];
         _updateToken(stream.token);
-        uint48 lastUpdate = tokens[stream.token].lastUpdate;
+        Token storage token = tokens[stream.token];
+
+        unchecked {
+            uint256 debt = debts[_id];
+            if (debt > 0) {
+                /// If payer balance has enough to pay back debt
+                if (token.balance >= debt) {
+                    tokens[stream.token].balance -= debt;
+                    streams[_id].redeemable += debt;
+                    debts[_id] = 0;
+                } else {
+                    debts[_id] = debt - token.balance;
+                    streams[_id].redeemable += token.balance;
+                    tokens[stream.token].balance = 0;
+                }
+            }
+        }
 
         /// If stream is inactive/cancelled
         if (stream.lastPaid == 0) {
@@ -505,14 +538,14 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             /// Stream not updated after start
             stream.starts > stream.lastPaid &&
             /// Stream ended
-            lastUpdate >= stream.ends
+            token.lastUpdate >= stream.ends
         ) {
             /// Refund payer for:
             /// Stream last updated to stream start
             /// Stream ended to token last updated
             tokens[stream.token].balance +=
                 ((stream.starts - stream.lastPaid) +
-                    (lastUpdate - stream.ends)) *
+                    (token.lastUpdate - stream.ends)) *
                 stream.amountPerSec;
             /// Payee can redeem:
             /// Stream start to end
@@ -528,7 +561,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Stream started but has not been updated from before start
         else if (
             /// Stream started
-            lastUpdate >= stream.starts &&
+            token.lastUpdate >= stream.starts &&
             /// Strean not updated after start
             stream.starts > stream.lastPaid
         ) {
@@ -540,21 +573,21 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             /// Payer can redeem:
             /// Stream start to last token update
             streams[_id].redeemable =
-                (lastUpdate - stream.starts) *
+                (token.lastUpdate - stream.starts) *
                 stream.amountPerSec;
             unchecked {
-                streams[_id].lastPaid = lastUpdate;
+                streams[_id].lastPaid = token.lastUpdate;
             }
         }
         /// Stream has ended
         else if (
             /// Stream ended
-            lastUpdate >= stream.ends
+            token.lastUpdate >= stream.ends
         ) {
             /// Refund payer for:
             /// Stream end to last token update
             tokens[stream.token].balance +=
-                (lastUpdate - stream.ends) *
+                (token.lastUpdate - stream.ends) *
                 stream.amountPerSec;
             /// Add redeemable for:
             /// Stream last updated to stream end
@@ -570,16 +603,16 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Stream is updated before stream starts
         else if (
             /// Stream not started
-            stream.starts > lastUpdate
+            stream.starts > token.lastUpdate
         ) {
             /// Refund payer:
             /// Last stream update to last token update
             tokens[stream.token].balance +=
-                (lastUpdate - stream.lastPaid) *
+                (token.lastUpdate - stream.lastPaid) *
                 stream.amountPerSec;
             unchecked {
                 /// update lastpaid to last token update
-                streams[_id].lastPaid = lastUpdate;
+                streams[_id].lastPaid = token.lastUpdate;
             }
         }
         /// Updated after start, and has not ended
@@ -587,15 +620,15 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             /// Stream started
             stream.lastPaid >= stream.starts &&
             /// Stream has not ended
-            stream.ends > lastUpdate
+            stream.ends > token.lastUpdate
         ) {
             /// Add redeemable for:
             /// stream last update to last token update
             streams[_id].redeemable +=
-                (lastUpdate - stream.lastPaid) *
+                (token.lastUpdate - stream.lastPaid) *
                 stream.amountPerSec;
             unchecked {
-                streams[_id].lastPaid = lastUpdate;
+                streams[_id].lastPaid = token.lastUpdate;
             }
         }
     }

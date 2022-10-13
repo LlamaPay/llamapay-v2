@@ -146,7 +146,7 @@ contract LlamaPayV2PayerTest is Test {
             1000
         );
         vm.warp(101);
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
 
         (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
             0
@@ -174,7 +174,7 @@ contract LlamaPayV2PayerTest is Test {
             1000
         );
         vm.warp(101);
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
         vm.warp(200);
         llamaPayV2Payer.resumeStream(0);
 
@@ -200,7 +200,7 @@ contract LlamaPayV2PayerTest is Test {
             1000
         );
         vm.warp(101);
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
         llamaPayV2Payer.withdraw(0, 100 * 1e18);
         llamaPayV2Payer.burnStream(0);
 
@@ -302,7 +302,7 @@ contract LlamaPayV2PayerTest is Test {
             1101
         );
         vm.warp(501);
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
         vm.warp(2000);
         llamaPayV2Payer.updateStream(0);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
@@ -377,9 +377,9 @@ contract LlamaPayV2PayerTest is Test {
             1,
             1000000
         );
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
         vm.expectRevert(abi.encodeWithSignature("INACTIVE_STREAM()"));
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
         vm.stopPrank();
     }
 
@@ -408,7 +408,7 @@ contract LlamaPayV2PayerTest is Test {
             1,
             100
         );
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
         vm.warp(100);
         vm.expectRevert(abi.encodeWithSignature("INVALID_TIME()"));
         llamaPayV2Payer.resumeStream(0);
@@ -432,7 +432,7 @@ contract LlamaPayV2PayerTest is Test {
             1,
             15000
         );
-        llamaPayV2Payer.stopStream(1);
+        llamaPayV2Payer.stopStream(1, false);
         vm.warp(11000);
         vm.expectRevert(abi.encodeWithSignature("PAYER_IN_DEBT()"));
         llamaPayV2Payer.resumeStream(1);
@@ -467,7 +467,7 @@ contract LlamaPayV2PayerTest is Test {
             15000
         );
         vm.warp(1000);
-        llamaPayV2Payer.stopStream(0);
+        llamaPayV2Payer.stopStream(0, false);
         vm.expectRevert(
             abi.encodeWithSignature("STREAM_ACTIVE_OR_REDEEMABLE()")
         );
