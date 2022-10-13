@@ -15,8 +15,6 @@ contract LlamaPayV2Factory is BoringBatchable {
     address public param;
 
     mapping(uint256 => address) public payerContracts;
-    mapping(address => mapping(address => uint256)) public withdrawalWhitelists;
-    mapping(address => address) public redirects;
 
     event LlamaPayContractCreated(address owner, address ownerContract);
 
@@ -31,28 +29,6 @@ contract LlamaPayV2Factory is BoringBatchable {
             amtOfPayers++;
         }
         emit LlamaPayContractCreated(msg.sender, llamapay);
-    }
-
-    /// @notice set redirect for sender
-    /// @param _redirectTo address to redirect to
-    function setRedirect(address _redirectTo) external {
-        redirects[msg.sender] = _redirectTo;
-    }
-
-    /// @notice reset redirect for sender
-    function resetRedirect() external {
-        redirects[msg.sender] = address(0);
-    }
-
-    /// @notice approve whitelisting for withdrawals
-    /// @param _toApprove address to approve
-    function approveWithdrawalWhitelist(address _toApprove) external {
-        withdrawalWhitelists[msg.sender][_toApprove] = 1;
-    }
-
-    /// @notice revoke whitelisting for withdrawals
-    function revokeWithdrawalWhitelist(address _toRevoke) external {
-        withdrawalWhitelists[msg.sender][_toRevoke] = 0;
     }
 
     /// @notice Calculates CREATE2 address for payer
