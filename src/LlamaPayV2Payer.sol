@@ -532,10 +532,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 tokens[_token].lastUpdate = uint48(block.timestamp);
             } else {
                 /// If not enough then get remainder paying as much as possible then calculating and adding time paid
-                tokens[_token].balance = token.balance % token.totalPaidPerSec;
                 tokens[_token].lastUpdate += uint48(
                     token.balance / token.totalPaidPerSec
                 );
+                tokens[_token].balance = token.balance % token.totalPaidPerSec;
             }
         }
     }
