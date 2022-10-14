@@ -550,5 +550,30 @@ contract LlamaPayV2PayerTest is Test {
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSignature("NOT_OWNER_OR_WHITELISTED()"));
         llamaPayV2Payer.withdraw(0, 10 * 1e18);
+        vm.stopPrank();
+    }
+
+    function testDebt() external {
+        vm.startPrank(alice);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            50000
+        );
+        vm.warp(20000);
+        llamaPayV2Payer.updateStream(0);
+        (uint256 balance, , , uint256 lastUpdate) = llamaPayV2Payer.tokens(
+            address(llamaToken)
+        );
+        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
+            0
+        );
+        assertEq(balance, 0);
+        assertEq(lastUpdate, 10000);
+        assertEq(lastPaid, 10000);
+        assertEq(redeemable, 10000 * 1e20);
+        vm.stopPrank();
     }
 }
