@@ -476,6 +476,88 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         emit RemoveStreamWhitelist(_id, _toRemove);
     }
 
+    /// @notice view only function to see withdrawable
+    /// @param _id token id
+    function withdrawable(uint256 _id)
+        public
+        view
+        returns (
+            uint256 lastUpdate,
+            uint256 debt,
+            uint256 withdrawableAmount
+        )
+    {
+        Stream storage stream = streams[_id];
+        Token storage token = tokens[stream.token];
+        uint256 streamed = (block.timestamp - lastUpdate) *
+            token.totalPaidPerSec;
+
+        if (token.balance >= streamed) {
+            lastUpdate = block.timestamp;
+        } else {
+            lastUpdate =
+                token.lastUpdate +
+                (token.balance / token.totalPaidPerSec);
+        }
+
+        /// Inactive or cancelled stream
+        if (stream.lastPaid == 0 || stream.starts > block.timestamp) {}
+        /// Stream not updated after start and has ended
+        else if (
+            stream.starts > stream.lastPaid && block.timestamp >= stream.ends
+        ) {
+            /// if payer is in debt
+            if (stream.ends > lastUpdate) {
+                debt = (stream.ends - lastUpdate) * stream.amountPerSec;
+                withdrawableAmount =
+                    (lastUpdate - stream.starts) *
+                    stream.amountPerSec;
+            } else {
+                withdrawableAmount =
+                    (stream.ends - stream.starts) *
+                    stream.amountPerSec;
+            }
+        }
+        /// Stream started but has not been updated from before start
+        else if (
+            block.timestamp >= stream.starts && stream.starts > stream.lastPaid
+        ) {
+            /// if in debt before stream start
+            if (stream.starts > lastUpdate) {
+                debt = (block.timestamp - stream.starts) * stream.amountPerSec;
+            } else {
+                withdrawableAmount =
+                    (lastUpdate - stream.starts) *
+                    stream.amountPerSec;
+                debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
+            }
+        }
+        /// Stream has ended
+        else if (block.timestamp >= stream.ends) {
+            /// If in debt
+            if (stream.ends > lastUpdate) {
+                debt = (stream.ends * lastUpdate) * stream.amountPerSec;
+                withdrawableAmount =
+                    (lastUpdate - stream.lastPaid) *
+                    stream.amountPerSec;
+            } else {
+                withdrawableAmount =
+                    (stream.ends - stream.lastPaid) *
+                    stream.amountPerSec;
+            }
+        }
+        /// Updated after start, and has not ended
+        else if (
+            stream.lastPaid >= stream.starts && stream.ends > block.timestamp
+        ) {
+            withdrawableAmount =
+                (lastUpdate - stream.lastPaid) *
+                stream.amountPerSec;
+            debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
+        }
+        withdrawableAmount += stream.redeemable;
+    }
+
     /// @notice create stream
     /// @param _token token
     /// @param _to recipient
