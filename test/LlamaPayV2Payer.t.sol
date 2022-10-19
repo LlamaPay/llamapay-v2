@@ -626,4 +626,152 @@ contract LlamaPayV2PayerTest is Test {
         assertEq(10000 * 1e20, llamaPayV2Payer.debts(0));
         vm.stopPrank();
     }
+
+    function testWithdrawableNotStartedAndEnded() external {
+        vm.startPrank(alice);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            5000
+        );
+        vm.warp(6000);
+        (
+            uint256 lastUpdate,
+            uint256 debt,
+            uint256 withdrawableAmount
+        ) = llamaPayV2Payer.withdrawable(0);
+        llamaPayV2Payer.updateStream(0);
+        assertEq(lastUpdate, 6000);
+        assertEq(debt, 0);
+        assertEq(withdrawableAmount, 5000 * 1e18);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            6000,
+            15000
+        );
+        vm.warp(12000);
+        (lastUpdate, debt, withdrawableAmount) = llamaPayV2Payer.withdrawable(
+            1
+        );
+        assertEq(lastUpdate, 11000);
+        assertEq(debt, 1000 * 1e18);
+        assertEq(withdrawableAmount, 5000 * 1e18);
+        vm.stopPrank();
+    }
+
+    function testWithdrawableStartedButNotUpdated() external {
+        vm.startPrank(alice);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            10000
+        );
+        vm.warp(5000);
+        (
+            uint256 lastUpdate,
+            uint256 debt,
+            uint256 withdrawableAmount
+        ) = llamaPayV2Payer.withdrawable(0);
+        assertEq(withdrawableAmount, 5000 * 1e18);
+        llamaPayV2Payer.stopStream(0, false);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            5000,
+            15000
+        );
+        vm.warp(11000);
+        (lastUpdate, debt, withdrawableAmount) = llamaPayV2Payer.withdrawable(
+            1
+        );
+        assertEq(lastUpdate, 10000);
+        assertEq(debt, 1000 * 1e18);
+        assertEq(withdrawableAmount, 5000 * 1e18);
+        vm.stopPrank();
+    }
+
+    function testWithdrawableStreamEnded() external {
+        vm.startPrank(alice);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            5000
+        );
+        llamaPayV2Payer.updateStream(0);
+        vm.warp(5500);
+        (
+            uint256 lastUpdate,
+            uint256 debt,
+            uint256 withdrawableAmount
+        ) = llamaPayV2Payer.withdrawable(0);
+        assertEq(withdrawableAmount, 5000 * 1e18);
+        llamaPayV2Payer.updateStream(0);
+        (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
+        vm.warp(6000);
+        assertEq(balance, 5000 * 1e20);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            5000,
+            20000
+        );
+        llamaPayV2Payer.updateStream(1);
+        vm.warp(12000);
+        (lastUpdate, debt, withdrawableAmount) = llamaPayV2Payer.withdrawable(
+            1
+        );
+        assertEq(lastUpdate, 10000);
+        assertEq(debt, 2000 * 1e18);
+        assertEq(withdrawableAmount, 5000 * 1e18);
+        vm.stopPrank();
+    }
+
+    function testWithdrawableNormalStream() external {
+        vm.startPrank(alice);
+        vm.warp(100);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            5000
+        );
+        llamaPayV2Payer.updateStream(0);
+        vm.warp(3000);
+        (
+            uint256 lastUpdate,
+            uint256 debt,
+            uint256 withdrawableAmount
+        ) = llamaPayV2Payer.withdrawable(0);
+        assertEq(lastUpdate, 3000);
+        assertEq(0, debt);
+        assertEq(withdrawableAmount, 3000 * 1e18);
+        llamaPayV2Payer.stopStream(0, false);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            3000,
+            100000
+        );
+        llamaPayV2Payer.updateStream(1);
+        vm.warp(15000);
+        (lastUpdate, debt, withdrawableAmount) = llamaPayV2Payer.withdrawable(
+            1
+        );
+        assertEq(lastUpdate, 10000);
+        assertEq(debt, 5000 * 1e18);
+        assertEq(withdrawableAmount, 7000 * 1e18);
+        vm.stopPrank();
+    }
 }
