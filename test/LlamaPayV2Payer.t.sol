@@ -774,4 +774,60 @@ contract LlamaPayV2PayerTest is Test {
         assertEq(withdrawableAmount, 7000 * 1e18);
         vm.stopPrank();
     }
+
+    function testRepayDebt() external {
+        vm.startPrank(alice);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            100000
+        );
+        vm.warp(20000);
+        llamaPayV2Payer.stopStream(0, true);
+        assertEq(llamaPayV2Payer.debts(0), 10000 * 1e20);
+        llamaToken.mint(alice, 10000 * 1e18);
+        llamaToken.approve(address(llamaPayV2Payer), 10000 * 1e18);
+        llamaPayV2Payer.deposit(address(llamaToken), 10000 * 1e18);
+        llamaPayV2Payer.repayDebt(0, 10000 * 1e20);
+        assertEq(llamaPayV2Payer.debts(0), 0);
+        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
+        assertEq(redeemable, 20000 * 1e20);
+        vm.stopPrank();
+    }
+
+    function testCreateStreamWithDebt() external {
+        vm.startPrank(alice);
+        vm.warp(15000);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            100000000
+        );
+        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
+        (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
+        assertEq(redeemable, 10000 * 1e20);
+        assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
+        assertEq(balance, 0);
+        vm.stopPrank();
+    }
+
+    function testCancelDebt() external {
+        vm.startPrank(alice);
+        vm.warp(15000);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            alice,
+            1 * 1e20,
+            0,
+            100000000
+        );
+        assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
+        llamaPayV2Payer.cancelDebt(0);
+        assertEq(llamaPayV2Payer.debts(0), 0);
+        vm.stopPrank();
+    }
 }

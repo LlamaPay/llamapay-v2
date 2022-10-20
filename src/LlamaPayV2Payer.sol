@@ -393,34 +393,29 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     /// @notice repay debt
     /// @param _id token id
-    function repayDebt(uint256 _id) external {
+    /// @param _amount amount to repay (20 decimals)
+    function repayDebt(uint256 _id, uint256 _amount)
+        external
+        onlyOwnerAndWhitelisted
+    {
         if (_id >= nextTokenId) revert INVALID_STREAM();
-        if (
-            msg.sender != owner &&
-            payerWhitelists[msg.sender] != 1 &&
-            msg.sender != ownerOf(_id)
-        ) revert NOT_OWNER_OR_WHITELISTED();
+        address token = streams[_id].token;
 
-        _updateStream(_id);
-        unchecked {
-            uint256 debt = debts[_id];
-            address token = streams[_id].token;
-            uint256 balance = tokens[token].balance;
-            if (debt > 0) {
-                /// If payer balance has enough to pay back debt
-                if (balance >= debt) {
-                    /// Deduct debt from payer balance and debt is repaid
-                    tokens[token].balance -= debt;
-                    streams[_id].redeemable += debt;
-                    debts[_id] = 0;
-                } else {
-                    /// Get remaining debt after payer balance is depleted
-                    debts[_id] = debt - balance;
-                    streams[_id].redeemable += balance;
-                    tokens[token].balance = 0;
-                }
-            }
-        }
+        /// Update token to update balances
+        _updateToken(token);
+        /// Reverts if debt cannot be paid
+        tokens[token].balance -= _amount;
+        /// Reverts if paying too much debt
+        debts[_id] -= _amount;
+        /// Add to redeemable to payee
+        streams[_id].redeemable += _amount;
+    }
+
+    /// Cancel debt from stream
+    /// @param _id token id
+    function cancelDebt(uint256 _id) external onlyOwnerAndWhitelisted {
+        if (_id >= nextTokenId) revert INVALID_STREAM();
+        debts[_id] = 0;
     }
 
     /// @notice add address to payer whitelist
@@ -582,25 +577,47 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         _updateToken(_token);
         if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
 
-        uint256 owed;
-        if (block.timestamp > _starts) {
-            /// Calculates amount streamed from start to stream creation
-            owed = (block.timestamp - _starts) * _amountPerSec;
-            /// Will revert if cannot pay owed balance
-            tokens[_token].balance -= owed;
-        }
-
-        tokens[_token].totalPaidPerSec += _amountPerSec;
         id = nextTokenId;
+        uint256 redeemable;
+        /// Handles if start is before stream creation
+        /// To pay amount missed before stream creation
+        if (block.timestamp > _starts) {
+            /// Calculate amount owed before stream creation
+            uint256 owed = (block.timestamp - _starts) * _amountPerSec;
+            unchecked {
+                uint256 balance = tokens[_token].balance;
+                /// Check if current balance is able to pay debt
+                if (balance >= owed) {
+                    /// If can be paid then add owed amount to redeemable
+                    redeemable = owed;
+                    /// Deduct owed amount from balance
+                    tokens[_token].balance -= owed;
+                }
+                /// if not enough to pay debt 
+                else {
+                    /// Entire balance will be sent to redeemable
+                    redeemable = balance;
+                    /// Remaining debt is stored in mapping
+                    debts[id] = owed - balance;
+                    /// Deplete payer balance
+                    tokens[_token].balance = 0;
+                }
+            }
+        }
+        /// Add to totalPaidPerSec
+        tokens[_token].totalPaidPerSec += _amountPerSec;
+        /// Mint stream to payee
         _safeMint(_to, id);
+        /// Add stream info to payee
         streams[id] = Stream({
             amountPerSec: _amountPerSec,
             token: _token,
             lastPaid: uint48(block.timestamp),
             starts: _starts,
             ends: _ends,
-            redeemable: owed
+            redeemable: redeemable
         });
+        /// +1 to token count
         unchecked {
             nextTokenId++;
         }
