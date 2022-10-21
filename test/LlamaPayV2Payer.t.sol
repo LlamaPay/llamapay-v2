@@ -112,7 +112,7 @@ contract LlamaPayV2PayerTest is Test {
             1000
         );
         vm.warp(101);
-        llamaPayV2Payer.modifyStream(0, 2 * 1e20, 1000);
+        llamaPayV2Payer.modifyStream(0, 2 * 1e20, 1000, false);
 
         (
             uint208 amountPerSec,
@@ -364,7 +364,7 @@ contract LlamaPayV2PayerTest is Test {
         );
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSignature("NOT_OWNER_OR_WHITELISTED()"));
-        llamaPayV2Payer.modifyStream(0, 200 * 1e20, 1000000);
+        llamaPayV2Payer.modifyStream(0, 200 * 1e20, 1000000, false);
     }
 
     function testCantStopIfStopped() external {
@@ -587,7 +587,7 @@ contract LlamaPayV2PayerTest is Test {
             50000
         );
         vm.warp(20000);
-        llamaPayV2Payer.modifyStream(0, 2 * 1e20, 50000);
+        llamaPayV2Payer.modifyStream(0, 2 * 1e20, 50000, true);
         (uint256 balance, , , uint256 lastUpdate) = llamaPayV2Payer.tokens(
             address(llamaToken)
         );
