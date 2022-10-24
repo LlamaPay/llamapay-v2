@@ -395,11 +395,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice repay debt
     /// @param _id token id
     /// @param _amount amount to repay (20 decimals)
-    function repayDebt(uint256 _id, uint256 _amount)
-        external
-        onlyOwnerAndWhitelisted
-    {
+    function repayDebt(uint256 _id, uint256 _amount) external {
         if (_id >= nextTokenId) revert INVALID_STREAM();
+        if (
+            msg.sender != owner &&
+            payerWhitelists[msg.sender] != 1 &&
+            msg.sender != ownerOf(_id)
+        ) revert NOT_OWNER_OR_WHITELISTED();
         address token = streams[_id].token;
 
         /// Update token to update balances
