@@ -20,6 +20,8 @@ error PAYER_IN_DEBT();
 error INACTIVE_STREAM();
 error ACTIVE_STREAM();
 error STREAM_ACTIVE_OR_REDEEMABLE();
+error STREAM_HAS_NOT_STARTED();
+error STREAM_HAS_ENDED();
 
 /// @title LlamaPayV2 Payer Contract
 /// @author nemusona
@@ -131,9 +133,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         // Stores token divisor if it is the first time being deposited
         // Saves on having to call decimals() for conversions
         if (tokens[_token].divisor == 0) {
-            unchecked {
-                tokens[_token].divisor = uint208(10**(20 - token.decimals()));
-            }
+            tokens[_token].divisor = uint208(10**(20 - token.decimals()));
         }
         tokens[_token].balance += _amount * tokens[_token].divisor;
         token.safeTransferFrom(msg.sender, address(this), _amount);
@@ -148,10 +148,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         onlyOwnerAndWhitelisted
     {
         _updateToken(_token);
-        uint256 toDeduct;
-        unchecked {
-            toDeduct = _amount * tokens[_token].divisor;
-        }
+        uint256 toDeduct = _amount * tokens[_token].divisor;
         /// Will revert if not enough after updating Token struct
         tokens[_token].balance -= toDeduct;
         ERC20(_token).safeTransfer(msg.sender, _amount);
@@ -309,9 +306,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             /// Prevents incorrect totalPaidPerSec calculation if stream is inactive
             if (stream.lastPaid > 0) {
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
-                uint256 lastUpdate = tokens[stream.token].lastUpdate;
                 /// Track debt if payer is in debt
                 if (_payDebt) {
+                    uint256 lastUpdate = tokens[stream.token].lastUpdate;
                     /// Add debt owed til modify call
                     debts[_id] +=
                         (block.timestamp - lastUpdate) *
@@ -326,6 +323,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     /// @notice Stops current stream
     /// @param _id token id
+    /// @param _payDebt choose to pay debt
     function stopStream(uint256 _id, bool _payDebt)
         external
         onlyOwnerAndWhitelisted
@@ -337,9 +335,9 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         if (stream.lastPaid == 0) revert INACTIVE_STREAM();
 
         unchecked {
-            uint256 lastUpdate = tokens[stream.token].lastUpdate;
-            /// If chooses to pay debt and payer is in debt
-            if (_payDebt && block.timestamp > lastUpdate) {
+            /// If chooses to pay debt
+            if (_payDebt) {
+                uint256 lastUpdate = tokens[stream.token].lastUpdate;
                 /// Track owed until stopStream call
                 debts[_id] +=
                     (block.timestamp - lastUpdate) *
@@ -354,12 +352,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _id token id
     function resumeStream(uint256 _id) external onlyOwnerAndWhitelisted {
         if (_id >= nextTokenId) revert INVALID_STREAM();
+        _updateStream(_id);
         Stream storage stream = streams[_id];
         if (stream.lastPaid > 0) revert ACTIVE_STREAM();
-        /// Cannot resume an already ended stream
-        if (block.timestamp >= stream.ends) revert INVALID_TIME();
-
-        _updateToken(stream.token);
+        if (stream.starts > block.timestamp) revert STREAM_HAS_NOT_STARTED();
+        if (block.timestamp >= stream.ends) revert STREAM_HAS_ENDED();
         if (block.timestamp > tokens[stream.token].lastUpdate)
             revert PAYER_IN_DEBT();
 
@@ -411,7 +408,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Reverts if paying too much debt
         debts[_id] -= _amount;
         /// Add to redeemable to payee
-        streams[_id].redeemable += _amount;
+        unchecked {
+            /// If there is a chance of an overflow, it would've reverted by then
+            streams[_id].redeemable += _amount;
+        }
     }
 
     /// Cancel debt from stream
@@ -576,7 +576,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint48 _ends
     ) private onlyOwnerAndWhitelisted returns (uint256 id) {
         if (_to == address(0)) revert INVALID_ADDRESS();
-        if (_starts >= _ends) revert INVALID_TIME();
+        if (_starts >= _ends || block.timestamp >= _ends) revert INVALID_TIME();
         _updateToken(_token);
         if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
 
@@ -584,10 +584,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 redeemable;
         /// Handles if start is before stream creation
         /// To pay amount missed before stream creation
-        if (block.timestamp > _starts) {
-            /// Calculate amount owed before stream creation
-            uint256 owed = (block.timestamp - _starts) * _amountPerSec;
-            unchecked {
+        unchecked {
+            if (block.timestamp > _starts) {
+                /// Calculate amount owed before stream creation
+                uint256 owed = (block.timestamp - _starts) * _amountPerSec;
                 uint256 balance = tokens[_token].balance;
                 /// Check if current balance is able to pay debt
                 if (balance >= owed) {
@@ -654,107 +654,98 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Update Token info to get last update
         Stream storage stream = streams[_id];
         _updateToken(stream.token);
-        uint48 lastUpdate = tokens[stream.token].lastUpdate;
-
-        /// If stream is inactive/cancelled
-        if (stream.lastPaid == 0) {
-            /// Can only withdraw redeeemable so do nothing
-        }
-        /// Stream not updated after start and has ended
-        else if (
-            /// Stream not updated after start
-            stream.starts > stream.lastPaid &&
-            /// Stream ended
-            lastUpdate >= stream.ends
-        ) {
-            /// Refund payer for:
-            /// Stream last updated to stream start
-            /// Stream ended to token last updated
-            tokens[stream.token].balance +=
-                ((stream.starts - stream.lastPaid) +
-                    (lastUpdate - stream.ends)) *
-                stream.amountPerSec;
-            /// Payee can redeem:
-            /// Stream start to end
-            streams[_id].redeemable =
-                (stream.ends - stream.starts) *
-                stream.amountPerSec;
-            unchecked {
+        unchecked {
+            uint48 lastUpdate = tokens[stream.token].lastUpdate;
+            /// If stream is inactive/cancelled
+            if (stream.lastPaid == 0) {
+                /// Can only withdraw redeeemable so do nothing
+            }
+            /// Stream not updated after start and has ended
+            else if (
+                /// Stream not updated after start
+                stream.starts > stream.lastPaid &&
+                /// Stream ended
+                lastUpdate >= stream.ends
+            ) {
+                /// Refund payer for:
+                /// Stream last updated to stream start
+                /// Stream ended to token last updated
+                tokens[stream.token].balance +=
+                    ((stream.starts - stream.lastPaid) +
+                        (lastUpdate - stream.ends)) *
+                    stream.amountPerSec;
+                /// Payee can redeem:
+                /// Stream start to end
+                streams[_id].redeemable =
+                    (stream.ends - stream.starts) *
+                    stream.amountPerSec;
                 /// Stream is now inactive
                 streams[_id].lastPaid = 0;
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
             }
-        }
-        /// Stream started but has not been updated from before start
-        else if (
-            /// Stream started
-            lastUpdate >= stream.starts &&
-            /// Strean not updated after start
-            stream.starts > stream.lastPaid
-        ) {
-            /// Refund payer for:
-            /// Stream last updated to stream start
-            tokens[stream.token].balance +=
-                (stream.starts - stream.lastPaid) *
-                stream.amountPerSec;
-            /// Payer can redeem:
-            /// Stream start to last token update
-            streams[_id].redeemable =
-                (lastUpdate - stream.starts) *
-                stream.amountPerSec;
-            unchecked {
+            /// Stream started but has not been updated from before start
+            else if (
+                /// Stream started
+                lastUpdate >= stream.starts &&
+                /// Strean not updated after start
+                stream.starts > stream.lastPaid
+            ) {
+                /// Refund payer for:
+                /// Stream last updated to stream start
+                tokens[stream.token].balance +=
+                    (stream.starts - stream.lastPaid) *
+                    stream.amountPerSec;
+                /// Payer can redeem:
+                /// Stream start to last token update
+                streams[_id].redeemable =
+                    (lastUpdate - stream.starts) *
+                    stream.amountPerSec;
                 streams[_id].lastPaid = lastUpdate;
             }
-        }
-        /// Stream has ended
-        else if (
-            /// Stream ended
-            lastUpdate >= stream.ends
-        ) {
-            /// Refund payer for:
-            /// Stream end to last token update
-            tokens[stream.token].balance +=
-                (lastUpdate - stream.ends) *
-                stream.amountPerSec;
-            /// Add redeemable for:
-            /// Stream last updated to stream end
-            streams[_id].redeemable +=
-                (stream.ends - stream.lastPaid) *
-                stream.amountPerSec;
-            /// Stream is now inactive
-            unchecked {
+            /// Stream has ended
+            else if (
+                /// Stream ended
+                lastUpdate >= stream.ends
+            ) {
+                /// Refund payer for:
+                /// Stream end to last token update
+                tokens[stream.token].balance +=
+                    (lastUpdate - stream.ends) *
+                    stream.amountPerSec;
+                /// Add redeemable for:
+                /// Stream last updated to stream end
+                streams[_id].redeemable +=
+                    (stream.ends - stream.lastPaid) *
+                    stream.amountPerSec;
+                /// Stream is now inactive
                 streams[_id].lastPaid = 0;
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
             }
-        }
-        /// Stream is updated before stream starts
-        else if (
-            /// Stream not started
-            stream.starts > lastUpdate
-        ) {
-            /// Refund payer:
-            /// Last stream update to last token update
-            tokens[stream.token].balance +=
-                (lastUpdate - stream.lastPaid) *
-                stream.amountPerSec;
-            unchecked {
+            /// Stream is updated before stream starts
+            else if (
+                /// Stream not started
+                stream.starts > lastUpdate
+            ) {
+                /// Refund payer:
+                /// Last stream update to last token update
+                tokens[stream.token].balance +=
+                    (lastUpdate - stream.lastPaid) *
+                    stream.amountPerSec;
                 /// update lastpaid to last token update
                 streams[_id].lastPaid = lastUpdate;
             }
-        }
-        /// Updated after start, and has not ended
-        else if (
-            /// Stream started
-            stream.lastPaid >= stream.starts &&
-            /// Stream has not ended
-            stream.ends > lastUpdate
-        ) {
-            /// Add redeemable for:
-            /// stream last update to last token update
-            streams[_id].redeemable +=
-                (lastUpdate - stream.lastPaid) *
-                stream.amountPerSec;
-            unchecked {
+            /// Updated after start, and has not ended
+            else if (
+                /// Stream started
+                stream.lastPaid >= stream.starts &&
+                /// Stream has not ended
+                stream.ends > lastUpdate
+            ) {
+                /// Add redeemable for:
+                /// stream last update to last token update
+                streams[_id].redeemable +=
+                    (lastUpdate - stream.lastPaid) *
+                    stream.amountPerSec;
                 streams[_id].lastPaid = lastUpdate;
             }
         }

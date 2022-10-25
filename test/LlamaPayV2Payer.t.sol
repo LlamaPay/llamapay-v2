@@ -410,7 +410,7 @@ contract LlamaPayV2PayerTest is Test {
         );
         llamaPayV2Payer.stopStream(0, false);
         vm.warp(100);
-        vm.expectRevert(abi.encodeWithSignature("INVALID_TIME()"));
+        vm.expectRevert(abi.encodeWithSignature("STREAM_HAS_ENDED()"));
         llamaPayV2Payer.resumeStream(0);
         vm.stopPrank();
     }
