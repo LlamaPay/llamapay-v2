@@ -41,7 +41,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         address token;
         uint48 starts;
         uint48 ends;
-        uint256 redeemable;
     }
 
     address public owner;
@@ -53,6 +52,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     mapping(uint256 => address) public redirects;
     mapping(uint256 => mapping(address => uint256)) public streamWhitelists;
     mapping(uint256 => uint256) public debts;
+    mapping(uint256 => uint256) public redeemables;
 
     event Deposit(address token, address from, uint256 amount);
     event WithdrawPayer(address token, address to, uint256 amount);
@@ -170,7 +170,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         Stream storage stream = streams[_id];
 
         /// Reverts if payee is going to rug
-        streams[_id].redeemable -= _amount * tokens[stream.token].divisor;
+        redeemables[_id] -= _amount * tokens[stream.token].divisor;
 
         address to;
         address redirect = redirects[_id];
@@ -375,9 +375,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             payerWhitelists[msg.sender] != 1 &&
             msg.sender != ownerOf(_id)
         ) revert NOT_OWNER_OR_WHITELISTED();
-        Stream storage stream = streams[_id];
         /// Prevents somebody from burning an active stream or a stream with balance in it
-        if (stream.redeemable > 0 || stream.lastPaid > 0)
+        if (redeemables[_id] > 0 || streams[_id].lastPaid > 0)
             revert STREAM_ACTIVE_OR_REDEEMABLE();
 
         _burn(_id);
@@ -410,7 +409,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Add to redeemable to payee
         unchecked {
             /// If there is a chance of an overflow, it would've reverted by then
-            streams[_id].redeemable += _amount;
+            redeemables[_id] += _amount;
         }
     }
 
@@ -557,7 +556,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
         }
         withdrawableAmount =
-            (withdrawableAmount + stream.redeemable) /
+            (withdrawableAmount + redeemables[_id]) /
             token.divisor;
         debt = debt / token.divisor;
     }
@@ -617,11 +616,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             token: _token,
             lastPaid: uint48(block.timestamp),
             starts: _starts,
-            ends: _ends,
-            redeemable: redeemable
+            ends: _ends
         });
         /// +1 to token count
         unchecked {
+            if (redeemable > 0) {
+                redeemables[id] = redeemable;
+            }
             nextTokenId++;
         }
     }
@@ -676,7 +677,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                     stream.amountPerSec;
                 /// Payee can redeem:
                 /// Stream start to end
-                streams[_id].redeemable =
+                redeemables[_id] =
                     (stream.ends - stream.starts) *
                     stream.amountPerSec;
                 /// Stream is now inactive
@@ -697,7 +698,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                     stream.amountPerSec;
                 /// Payer can redeem:
                 /// Stream start to last token update
-                streams[_id].redeemable =
+                redeemables[_id] =
                     (lastUpdate - stream.starts) *
                     stream.amountPerSec;
                 streams[_id].lastPaid = lastUpdate;
@@ -714,7 +715,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                     stream.amountPerSec;
                 /// Add redeemable for:
                 /// Stream last updated to stream end
-                streams[_id].redeemable +=
+                redeemables[_id] +=
                     (stream.ends - stream.lastPaid) *
                     stream.amountPerSec;
                 /// Stream is now inactive
@@ -743,7 +744,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             ) {
                 /// Add redeemable for:
                 /// stream last update to last token update
-                streams[_id].redeemable +=
+                redeemables[_id] +=
                     (lastUpdate - stream.lastPaid) *
                     stream.amountPerSec;
                 streams[_id].lastPaid = lastUpdate;

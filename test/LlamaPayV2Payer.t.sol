@@ -66,8 +66,7 @@ contract LlamaPayV2PayerTest is Test {
             uint48 lastPaid,
             address token,
             uint48 starts,
-            uint48 ends,
-            uint256 redeemable
+            uint48 ends
         ) = llamaPayV2Payer.streams(0);
         (, uint256 totalPaidPerSec, , uint48 lastUpdate) = llamaPayV2Payer
             .tokens(address(llamaToken));
@@ -77,7 +76,7 @@ contract LlamaPayV2PayerTest is Test {
         assertEq(token, address(llamaToken));
         assertEq(starts, 1);
         assertEq(ends, 1000);
-        assertEq(redeemable, 0);
+        assertEq(llamaPayV2Payer.redeemables(0), 0);
         assertEq(llamaPayV2Payer.ownerOf(0), bob);
 
         assertEq(totalPaidPerSec, 1 * 1e20);
@@ -96,8 +95,7 @@ contract LlamaPayV2PayerTest is Test {
             1,
             1000
         );
-        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
-        assertEq(redeemable, 10 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10 * 1e20);
         vm.stopPrank();
     }
 
@@ -114,20 +112,15 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(101);
         llamaPayV2Payer.modifyStream(0, 2 * 1e20, 1000, false);
 
-        (
-            uint208 amountPerSec,
-            uint48 lastPaid,
-            ,
-            ,
-            ,
-            uint256 redeemable
-        ) = llamaPayV2Payer.streams(0);
+        (uint208 amountPerSec, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(
+            0
+        );
         (, uint256 totalPaidPerSec, , uint48 lastUpdate) = llamaPayV2Payer
             .tokens(address(llamaToken));
 
         assertEq(amountPerSec, 2 * 1e20);
         assertEq(lastPaid, 101);
-        assertEq(redeemable, 100 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 100 * 1e20);
 
         assertEq(totalPaidPerSec, 2 * 1e20);
         assertEq(lastUpdate, 101);
@@ -148,15 +141,13 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(101);
         llamaPayV2Payer.stopStream(0, false);
 
-        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
-            0
-        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         (, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
             address(llamaToken)
         );
 
         assertEq(lastPaid, 0);
-        assertEq(redeemable, 100 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 100 * 1e20);
 
         assertEq(totalPaidPerSec, 0);
 
@@ -178,7 +169,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(200);
         llamaPayV2Payer.resumeStream(0);
 
-        (, uint48 lastPaid, , , , ) = llamaPayV2Payer.streams(0);
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         (, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
             address(llamaToken)
         );
@@ -220,11 +211,9 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(101);
         llamaPayV2Payer.updateStream(0);
 
-        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
-            0
-        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         assertEq(lastPaid, 101);
-        assertEq(redeemable, 100 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 100 * 1e20);
 
         vm.stopPrank();
     }
@@ -247,8 +236,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(110);
         llamaPayV2Payer.updateStream(0);
         (balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
-        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
-        assertEq(redeemable, 10 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10 * 1e20);
         assertEq(balance, 9990 * 1e20);
         vm.stopPrank();
     }
@@ -266,8 +254,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(2000);
         llamaPayV2Payer.updateStream(0);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
-        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
-        assertEq(redeemable, 1000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 1000 * 1e20);
         assertEq(balance, 9000 * 1e20);
         vm.stopPrank();
     }
@@ -285,8 +272,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(2000);
         llamaPayV2Payer.updateStream(0);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
-        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
-        assertEq(redeemable, 1000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 1000 * 1e20);
         assertEq(balance, 9000 * 1e20);
         vm.stopPrank();
     }
@@ -306,8 +292,7 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(2000);
         llamaPayV2Payer.updateStream(0);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
-        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
-        assertEq(redeemable, 500 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 500 * 1e20);
         assertEq(balance, 9500 * 1e20);
         vm.stopPrank();
     }
@@ -488,11 +473,9 @@ contract LlamaPayV2PayerTest is Test {
         vm.warp(51);
         llamaPayV2Payer.updateStream(0);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
-        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
-            0
-        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         assertEq(balance, 10000 * 1e20);
-        assertEq(redeemable, 0);
+        assertEq(llamaPayV2Payer.redeemables(0), 0);
         assertEq(lastPaid, 51);
         vm.stopPrank();
     }
@@ -567,13 +550,11 @@ contract LlamaPayV2PayerTest is Test {
         (uint256 balance, , , uint256 lastUpdate) = llamaPayV2Payer.tokens(
             address(llamaToken)
         );
-        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
-            0
-        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         assertEq(balance, 0);
         assertEq(lastUpdate, 10000);
         assertEq(lastPaid, 10000);
-        assertEq(redeemable, 10000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
         vm.stopPrank();
     }
 
@@ -591,13 +572,11 @@ contract LlamaPayV2PayerTest is Test {
         (uint256 balance, , , uint256 lastUpdate) = llamaPayV2Payer.tokens(
             address(llamaToken)
         );
-        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
-            0
-        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         assertEq(balance, 0);
         assertEq(lastUpdate, 10000);
         assertEq(lastPaid, 20000);
-        assertEq(redeemable, 10000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
         assertEq(10000 * 1e20, llamaPayV2Payer.debts(0));
         vm.stopPrank();
     }
@@ -616,13 +595,11 @@ contract LlamaPayV2PayerTest is Test {
         (uint256 balance, , , uint256 lastUpdate) = llamaPayV2Payer.tokens(
             address(llamaToken)
         );
-        (, uint48 lastPaid, , , , uint256 redeemable) = llamaPayV2Payer.streams(
-            0
-        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         assertEq(balance, 0);
         assertEq(lastUpdate, 10000);
         assertEq(lastPaid, 0);
-        assertEq(redeemable, 10000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
         assertEq(10000 * 1e20, llamaPayV2Payer.debts(0));
         vm.stopPrank();
     }
@@ -792,8 +769,7 @@ contract LlamaPayV2PayerTest is Test {
         llamaPayV2Payer.deposit(address(llamaToken), 10000 * 1e18);
         llamaPayV2Payer.repayDebt(0, 10000 * 1e20);
         assertEq(llamaPayV2Payer.debts(0), 0);
-        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
-        assertEq(redeemable, 20000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 20000 * 1e20);
         vm.stopPrank();
     }
 
@@ -807,9 +783,8 @@ contract LlamaPayV2PayerTest is Test {
             0,
             100000000
         );
-        (, , , , , uint256 redeemable) = llamaPayV2Payer.streams(0);
         (uint256 balance, , , ) = llamaPayV2Payer.tokens(address(llamaToken));
-        assertEq(redeemable, 10000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
         assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
         assertEq(balance, 0);
         vm.stopPrank();
