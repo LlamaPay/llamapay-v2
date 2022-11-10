@@ -25,22 +25,24 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     }
 
     address public owner;
+    address public llamaPayV2;
     uint256 public nextTokenId;
 
     mapping(uint256 => Payment) public payments;
     mapping(uint256 => address) public oracles;
     mapping(uint256 => address) public redirects;
 
-    constructor()
+    constructor(address _llamaPayV2)
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY-V2-TRANSFER")
     {
-        owner = LlamaPayV2Payer(owner).owner();
+        llamaPayV2 = _llamaPayV2;
+        owner = LlamaPayV2Payer(_llamaPayV2).owner();
     }
 
     modifier onlyOwnerAndWhitelisted() {
         if (
             msg.sender != owner &&
-            LlamaPayV2Payer(owner).payerWhitelists(msg.sender) != 1
+            LlamaPayV2Payer(llamaPayV2).payerWhitelists(msg.sender) != 1
         ) revert NOT_OWNER_OR_WHITELISTED();
         _;
     }
@@ -95,7 +97,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         if (
             msg.sender != nftOwner &&
             msg.sender != owner &&
-            LlamaPayV2Payer(owner).streamWhitelists(_id, msg.sender) != 1
+            LlamaPayV2Payer(llamaPayV2).streamWhitelists(_id, msg.sender) != 1
         ) revert NOT_OWNER_OR_WHITELISTED();
         Payment storage payment = payments[_id];
         address resolved = ecrecover(
