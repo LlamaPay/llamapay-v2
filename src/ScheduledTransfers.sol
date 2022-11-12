@@ -35,6 +35,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     mapping(uint256 => Payment) public payments;
     mapping(uint256 => address) public oracles;
     mapping(uint256 => address) public redirects;
+    mapping(uint256 => mapping(address => uint256)) public whitelists;
 
     constructor()
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY-V2-TRANSFER")
@@ -101,7 +102,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         if (
             msg.sender != nftOwner &&
             msg.sender != owner &&
-            LlamaPayV2Payer(llamaPayV2).streamWhitelists(_id, msg.sender) != 1
+            whitelists[_id][msg.sender] != 1
         ) revert NOT_OWNER_OR_WHITELISTED();
         Payment storage payment = payments[_id];
         address resolved = ecrecover(
@@ -153,5 +154,15 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     function removeRedirect(uint256 _id) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[_id] = address(0);
+    }
+
+    function addWhitelist(uint256 _id, address _toAdd) external {
+        if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
+        whitelists[_id][_toAdd] = 1;
+    }
+
+    function removeWhitelist(uint256 _id, address _toRemove) external {
+        if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
+        whitelists[_id][_toRemove] = 0;
     }
 }

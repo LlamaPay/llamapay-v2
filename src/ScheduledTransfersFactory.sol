@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.17;
 
-import "./ScheduledTransfers.sol";
+import {ScheduledTransfers} from "./ScheduledTransfers.sol";
 
 interface LlamaPayV2Factory {
     function calculateLlamaPayAddress(address)
@@ -13,7 +13,7 @@ interface LlamaPayV2Factory {
 
 error LLAMAPAY_DOESNT_EXIST();
 
-contract ScheduleTransfersFactory {
+contract ScheduledTransfersFactory {
     bytes32 constant INIT_CODEHASH =
         keccak256(type(ScheduledTransfers).creationCode);
 
