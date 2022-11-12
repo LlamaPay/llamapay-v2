@@ -8,6 +8,10 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {LlamaPayV2Payer} from "./LlamaPayV2Payer.sol";
 import "./BoringBatchable.sol";
 
+interface ScheduledTransfersFactory {
+    function param() external view returns (address);
+}
+
 error NOT_OWNER();
 error NOT_ORACLE();
 error NOT_OWNER_OR_WHITELISTED();
@@ -32,11 +36,11 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     mapping(uint256 => address) public oracles;
     mapping(uint256 => address) public redirects;
 
-    constructor(address _llamaPayV2)
+    constructor()
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY-V2-TRANSFER")
     {
-        llamaPayV2 = _llamaPayV2;
-        owner = LlamaPayV2Payer(_llamaPayV2).owner();
+        llamaPayV2 = ScheduledTransfersFactory(msg.sender).param();
+        owner = LlamaPayV2Payer(llamaPayV2).owner();
     }
 
     modifier onlyOwnerAndWhitelisted() {
