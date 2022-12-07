@@ -32,11 +32,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 balance;
         uint256 totalPaidPerSec;
         uint208 divisor;
-        uint48 lastUpdate;
+        uint48 lastUpdate; /// Overflows when we're all dead
     }
 
     struct Stream {
-        uint208 amountPerSec;
+        uint208 amountPerSec; /// Can stream 4.11 x 10^42 tokens per sec
         uint48 lastPaid;
         address token;
         uint48 starts;
@@ -48,15 +48,29 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     mapping(address => Token) public tokens;
     mapping(uint256 => Stream) public streams;
-    mapping(address => uint256) public payerWhitelists;
-    mapping(uint256 => address) public redirects;
-    mapping(uint256 => mapping(address => uint256)) public streamWhitelists;
-    mapping(uint256 => uint256) public debts;
-    mapping(uint256 => uint256) public redeemables;
+    mapping(address => uint256) public payerWhitelists; /// Allows other addresses to interact on owner behalf
+    mapping(uint256 => address) public redirects; /// Allows stream funds to be sent to another address
+    mapping(uint256 => mapping(address => uint256)) public streamWhitelists; /// Whitelist for addresses authorized to withdraw from stream
+    mapping(uint256 => uint256) public debts; /// Tracks debt for streams
+    mapping(uint256 => uint256) public redeemables; /// Tracks redeemable amount for streams
 
     event Deposit(address token, address from, uint256 amount);
     event WithdrawPayer(address token, address to, uint256 amount);
+    event WithdrawPayerAll(address token, address to, uint256 amount);
     event Withdraw(uint256 id, address token, address to, uint256 amount);
+    event WithdrawWithRedirect(
+        uint256 id,
+        address token,
+        address to,
+        uint256 amount
+    );
+    event WithdrawAll(uint256 id, address token, address to, uint256 amount);
+    event WithdrawAllWithRedirect(
+        uint256 id,
+        address token,
+        address to,
+        uint256 amount
+    );
     event CreateStream(
         uint256 id,
         address token,
@@ -93,6 +107,15 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 withheldPerSec,
         string reason
     );
+    event ModifyStream(
+        uint256 id,
+        uint208 newAmountPerSec,
+        uint48 newEnd,
+        bool payDebt
+    );
+    event StopStream(uint256 id, bool payDebt);
+    event ResumeStream(uint256 _id);
+    event BurnStream(uint256 _id);
     event AddPayerWhitelist(address whitelisted);
     event RemovePayerWhitelist(address removed);
     event AddRedirectStream(uint256 id, address redirected);
@@ -101,17 +124,17 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     event RemoveStreamWhitelist(uint256 id, address removed);
 
     constructor() ERC721("LlamaPay V2 Stream", "LLAMAPAY-V2-STREAM") {
-        owner = Factory(msg.sender).param();
+        owner = Factory(msg.sender).param(); /// Call factory param to get owner address
+    }
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NOT_OWNER();
+        _;
     }
 
     modifier onlyOwnerAndWhitelisted() {
         if (msg.sender != owner && payerWhitelists[msg.sender] != 1)
             revert NOT_OWNER_OR_WHITELISTED();
-        _;
-    }
-
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert NOT_OWNER();
         _;
     }
 
@@ -129,9 +152,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _token token
     /// @param _amount amount (native token decimal)
     function deposit(address _token, uint256 _amount) external {
+        /// No owner check makes it where people can deposit on behalf
         ERC20 token = ERC20(_token);
-        // Stores token divisor if it is the first time being deposited
-        // Saves on having to call decimals() for conversions
+        /// Stores token divisor if it is the first time being deposited
+        /// Saves on having to call decimals() for conversions afterwards
         if (tokens[_token].divisor == 0) {
             tokens[_token].divisor = uint208(10**(20 - token.decimals()));
         }
@@ -147,25 +171,81 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         external
         onlyOwnerAndWhitelisted
     {
+        /// Update token balance
+        /// Makes it where payer cannot rug payee by withdrawing tokens before payee does from stream
         _updateToken(_token);
         uint256 toDeduct = _amount * tokens[_token].divisor;
-        /// Will revert if not enough after updating Token struct
+        /// Will revert if not enough after updating Token
         tokens[_token].balance -= toDeduct;
         ERC20(_token).safeTransfer(msg.sender, _amount);
         emit WithdrawPayer(_token, msg.sender, _amount);
+    }
+
+    /// @notice same as above but all available tokens
+    /// @param _token token
+    function withdrawPayerAll(address _token) external onlyOwnerAndWhitelisted {
+        _updateToken(_token);
+        Token storage token = tokens[_token];
+        uint256 toSend = token.balance / token.divisor;
+        tokens[_token].balance = 0;
+        ERC20(_token).safeTransfer(msg.sender, toSend);
+        emit WithdrawPayerAll(_token, msg.sender, toSend);
     }
 
     /// @notice withdraw from stream
     /// @param _id token id
     /// @param _amount amount (native decimals)
     function withdraw(uint256 _id, uint256 _amount) external {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         address nftOwner = ownerOf(_id);
         if (
             msg.sender != nftOwner &&
             msg.sender != owner &&
             streamWhitelists[_id][msg.sender] != 1
         ) revert NOT_OWNER_OR_WHITELISTED();
+
+        /// Update stream to update available balances
+        _updateStream(_id);
+        Stream storage stream = streams[_id];
+
+        /// Reverts if payee is going to rug
+        redeemables[_id] -= _amount * tokens[stream.token].divisor;
+
+        ERC20(stream.token).safeTransfer(nftOwner, _amount);
+        emit Withdraw(_id, stream.token, nftOwner, _amount);
+    }
+
+    /// @notice withdraw all from stream
+    /// @param _id token id
+    function withdrawAll(uint256 _id) external {
+        address nftOwner = ownerOf(_id);
+        if (
+            msg.sender != nftOwner &&
+            msg.sender != owner &&
+            streamWhitelists[_id][msg.sender] != 1
+        ) revert NOT_OWNER_OR_WHITELISTED();
+
+        /// Update stream to update available balances
+        _updateStream(_id);
+        Stream storage stream = streams[_id];
+
+        uint256 toRedeem = redeemables[_id] / tokens[stream.token].divisor;
+        redeemables[_id] = 0;
+        ERC20(stream.token).safeTransfer(nftOwner, toRedeem);
+        emit WithdrawAll(_id, stream.token, nftOwner, toRedeem);
+    }
+
+    /// @notice withdraw from stream redirect
+    /// @param _id token id
+    /// @param _amount amount (native decimals)
+    function withdrawWithRedirect(uint256 _id, uint256 _amount) external {
+        address nftOwner = ownerOf(_id);
+        if (
+            msg.sender != nftOwner &&
+            msg.sender != owner &&
+            streamWhitelists[_id][msg.sender] != 1
+        ) revert NOT_OWNER_OR_WHITELISTED();
+
+        /// Update stream to update available balances
         _updateStream(_id);
         Stream storage stream = streams[_id];
 
@@ -181,7 +261,36 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         }
 
         ERC20(stream.token).safeTransfer(to, _amount);
-        emit Withdraw(_id, stream.token, to, _amount);
+        emit WithdrawAllWithRedirect(_id, stream.token, to, _amount);
+    }
+
+    /// @notice withdraw all from stream redirect
+    /// @param _id token id
+    function withdrawAllWithRedirect(uint256 _id) external {
+        address nftOwner = ownerOf(_id);
+        if (
+            msg.sender != nftOwner &&
+            msg.sender != owner &&
+            streamWhitelists[_id][msg.sender] != 1
+        ) revert NOT_OWNER_OR_WHITELISTED();
+
+        /// Update stream to update available balances
+        _updateStream(_id);
+        Stream storage stream = streams[_id];
+
+        /// Reverts if payee is going to rug
+        uint256 toRedeem = redeemables[_id] / tokens[stream.token].divisor;
+
+        address to;
+        address redirect = redirects[_id];
+        if (redirect != address(0)) {
+            to = redirect;
+        } else {
+            to = nftOwner;
+        }
+
+        ERC20(stream.token).safeTransfer(to, toRedeem);
+        emit WithdrawAllWithRedirect(_id, stream.token, to, toRedeem);
     }
 
     /// @notice creates stream
@@ -295,7 +404,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint48 _newEnd,
         bool _payDebt
     ) external onlyOwnerAndWhitelisted {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         _updateStream(_id);
         Stream storage stream = streams[_id];
         /// Prevents people from setting end to time already "paid out"
@@ -306,7 +414,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             /// Prevents incorrect totalPaidPerSec calculation if stream is inactive
             if (stream.lastPaid > 0) {
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
-                /// Track debt if payer is in debt
+                /// Track debt if payer chooses to pay debt
                 if (_payDebt) {
                     uint256 lastUpdate = tokens[stream.token].lastUpdate;
                     /// Add debt owed til modify call
@@ -319,6 +427,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             streams[_id].ends = _newEnd;
             streams[_id].lastPaid = uint48(block.timestamp);
         }
+        emit ModifyStream(_id, _newAmountPerSec, _newEnd, _payDebt);
     }
 
     /// @notice Stops current stream
@@ -328,8 +437,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         external
         onlyOwnerAndWhitelisted
     {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
-
         _updateStream(_id);
         Stream storage stream = streams[_id];
         if (stream.lastPaid == 0) revert INACTIVE_STREAM();
@@ -346,12 +453,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             streams[_id].lastPaid = 0;
             tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
         }
+        emit StopStream(_id, _payDebt);
     }
 
     /// @notice resumes a stopped stream
     /// @param _id token id
     function resumeStream(uint256 _id) external onlyOwnerAndWhitelisted {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         _updateStream(_id);
         Stream storage stream = streams[_id];
         if (stream.lastPaid > 0) revert ACTIVE_STREAM();
@@ -364,12 +471,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         unchecked {
             streams[_id].lastPaid = uint48(block.timestamp);
         }
+        emit ResumeStream(_id);
     }
 
     /// @notice burns an inactive and withdrawn stream
     /// @param _id token id
     function burnStream(uint256 _id) external {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         if (
             msg.sender != owner &&
             payerWhitelists[msg.sender] != 1 &&
@@ -380,6 +487,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             revert STREAM_ACTIVE_OR_REDEEMABLE();
 
         _burn(_id);
+        emit BurnStream(_id);
     }
 
     /// @notice manually update stream
@@ -392,7 +500,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _id token id
     /// @param _amount amount to repay (20 decimals)
     function repayDebt(uint256 _id, uint256 _amount) external {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         if (
             msg.sender != owner &&
             payerWhitelists[msg.sender] != 1 &&
@@ -413,10 +520,32 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         }
     }
 
+    /// @notice repay all debt
+    /// @param _id token id
+    function repayAllDebt(uint256 _id) external {
+        if (
+            msg.sender != owner &&
+            payerWhitelists[msg.sender] != 1 &&
+            msg.sender != ownerOf(_id)
+        ) revert NOT_OWNER_OR_WHITELISTED();
+        address token = streams[_id].token;
+
+        /// Update token to update balances
+        _updateToken(token);
+        uint256 totalDebt = debts[_id];
+        /// Reverts if debt cannot be paid
+        tokens[token].balance -= totalDebt;
+        debts[_id] = 0;
+        /// Add to redeemable to payee
+        unchecked {
+            /// If there is a chance of an overflow, it would've reverted by then
+            redeemables[_id] += totalDebt;
+        }
+    }
+
     /// Cancel debt from stream
     /// @param _id token id
     function cancelDebt(uint256 _id) external onlyOwnerAndWhitelisted {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         debts[_id] = 0;
     }
 
@@ -438,7 +567,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _id token id
     /// @param _redirectTo address to redirect funds to
     function addRedirectStream(uint256 _id, address _redirectTo) external {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[_id] = _redirectTo;
         emit AddRedirectStream(_id, _redirectTo);
@@ -447,7 +575,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @notice remove redirect to stream
     /// @param _id token id
     function removeRedirectStream(uint256 _id) external {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[_id] = address(0);
         emit RemoveRedirectStream(_id);
@@ -457,7 +584,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _id token id
     /// @param _toAdd address to whitelist
     function addStreamWhitelist(uint256 _id, address _toAdd) external {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         streamWhitelists[_id][_toAdd] = 1;
         emit AddStreamWhitelist(_id, _toAdd);
@@ -467,7 +593,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _id token id
     /// @param _toRemove address to remove from whitelist
     function removeStreamWhitelist(uint256 _id, address _toRemove) external {
-        if (_id >= nextTokenId) revert INVALID_STREAM();
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         streamWhitelists[_id][_toRemove] = 0;
         emit RemoveStreamWhitelist(_id, _toRemove);
@@ -574,55 +699,36 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint48 _starts,
         uint48 _ends
     ) private onlyOwnerAndWhitelisted returns (uint256 id) {
-        if (_to == address(0)) revert INVALID_ADDRESS();
-        if (_starts >= _ends || block.timestamp >= _ends) revert INVALID_TIME();
+        if (_starts >= _ends) revert INVALID_TIME();
         _updateToken(_token);
         if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
 
         id = nextTokenId;
-        uint256 redeemable;
-        /// Handles if start is before stream creation
-        /// To pay amount missed before stream creation
-        unchecked {
-            if (block.timestamp > _starts) {
-                /// Calculate amount owed before stream creation
-                uint256 owed = (block.timestamp - _starts) * _amountPerSec;
-                uint256 balance = tokens[_token].balance;
-                /// Check if current balance is able to pay debt
-                if (balance >= owed) {
-                    /// If can be paid then add owed amount to redeemable
-                    redeemable = owed;
-                    /// Deduct owed amount from balance
-                    tokens[_token].balance -= owed;
-                }
-                /// if not enough to pay debt
-                else {
-                    /// Entire balance will be sent to redeemable
-                    redeemable = balance;
-                    /// Remaining debt is stored in mapping
-                    debts[id] = owed - balance;
-                    /// Deplete payer balance
-                    tokens[_token].balance = 0;
-                }
-            }
-        }
-        /// Add to totalPaidPerSec
-        tokens[_token].totalPaidPerSec += _amountPerSec;
-        /// Mint stream to payee
         _safeMint(_to, id);
-        /// Add stream info to payee
+
         streams[id] = Stream({
             amountPerSec: _amountPerSec,
             token: _token,
-            lastPaid: uint48(block.timestamp),
+            lastPaid: 0,
             starts: _starts,
             ends: _ends
         });
-        /// +1 to token count
+
+        /// Add to debt if stream already ended on creation
+        if (block.timestamp > _ends) {
+            debts[id] = (_ends - _starts) * _amountPerSec;
+        }
+        /// Add to debt if start is before block.timestamp
+        else if (block.timestamp > _starts) {
+            debts[id] = (block.timestamp - _starts) * _amountPerSec;
+            tokens[_token].totalPaidPerSec += _amountPerSec;
+            streams[id].lastPaid = uint48(block.timestamp);
+        } else {
+            tokens[_token].totalPaidPerSec += _amountPerSec;
+            streams[id].lastPaid = uint48(block.timestamp);
+        }
+
         unchecked {
-            if (redeemable > 0) {
-                redeemables[id] = redeemable;
-            }
             nextTokenId++;
         }
     }
