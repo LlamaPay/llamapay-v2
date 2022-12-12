@@ -106,11 +106,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 withheldPerSec,
         string reason
     );
-    event ModifyStream(
-        uint256 id,
-        uint208 newAmountPerSec,
-        uint48 newEnd
-    );
+    event ModifyStream(uint256 id, uint208 newAmountPerSec, uint48 newEnd);
     event StopStream(uint256 id, bool payDebt);
     event ResumeStream(uint256 _id);
     event BurnStream(uint256 _id);
@@ -499,13 +495,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Reverts if paying too much debt
         debts[_id] -= _amount;
         /// Add to redeemable to payee
-        unchecked {
-            /// If there is a chance of an overflow, it would've reverted by then
-            redeemables[_id] += _amount;
-        }
+        redeemables[_id] += _amount;
     }
 
-    /// @notice repay all debt
+    /// @notice attempt to repay all debt
     /// @param _id token id
     function repayAllDebt(uint256 _id) external {
         if (
@@ -518,14 +511,20 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Update token to update balances
         _updateToken(token);
         uint256 totalDebt = debts[_id];
-        /// Reverts if debt cannot be paid
-        tokens[token].balance -= totalDebt;
-        debts[_id] = 0;
-        /// Add to redeemable to payee
+        uint256 balance = tokens[token].balance;
+        uint256 toPay;
         unchecked {
-            /// If there is a chance of an overflow, it would've reverted by then
-            redeemables[_id] += totalDebt;
+            if (balance >= totalDebt) {
+                tokens[token].balance -= totalDebt;
+                debts[_id] = 0;
+                toPay = totalDebt;
+            } else {
+                debts[_id] = totalDebt - balance;
+                tokens[token].balance = 0;
+                toPay = balance;
+            }
         }
+        redeemables[_id] += toPay;
     }
 
     /// Cancel debt from stream
@@ -710,12 +709,12 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             owed = (block.timestamp - _starts) * _amountPerSec;
             tokens[_token].totalPaidPerSec += _amountPerSec;
             streams[id].lastPaid = uint48(block.timestamp);
-        /// If started at timestamp or starts in the future
+            /// If started at timestamp or starts in the future
         } else if (_starts >= block.timestamp) {
             tokens[_token].totalPaidPerSec += _amountPerSec;
             streams[id].lastPaid = uint48(block.timestamp);
         }
-        
+
         unchecked {
             /// If can pay owed then directly send it to payee
             if (token.balance >= owed) {
