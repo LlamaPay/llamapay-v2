@@ -109,8 +109,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     event ModifyStream(
         uint256 id,
         uint208 newAmountPerSec,
-        uint48 newEnd,
-        bool payDebt
+        uint48 newEnd
     );
     event StopStream(uint256 id, bool payDebt);
     event ResumeStream(uint256 _id);
@@ -400,31 +399,24 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function modifyStream(
         uint256 _id,
         uint208 _newAmountPerSec,
-        uint48 _newEnd,
-        bool _payDebt
+        uint48 _newEnd
     ) external onlyOwnerAndWhitelisted {
         _updateStream(_id);
         Stream storage stream = streams[_id];
+        uint48 lastUpdate = tokens[stream.token].lastUpdate;
         /// Prevents people from setting end to time already "paid out"
-        if (block.timestamp >= _newEnd) revert INVALID_TIME();
+        if (lastUpdate >= _newEnd) revert INVALID_TIME();
 
         if (stream.lastPaid > 0) {
             tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
             unchecked {
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
-                /// Track debt if payer chooses to pay debt
-                if (_payDebt) {
-                    /// Add debt owed til modify call
-                    debts[_id] +=
-                        (block.timestamp - tokens[stream.token].lastUpdate) *
-                        stream.amountPerSec;
-                }
-                streams[_id].lastPaid = uint48(block.timestamp);
+                streams[_id].lastPaid = lastUpdate;
             }
         }
         streams[_id].amountPerSec = _newAmountPerSec;
         streams[_id].ends = _newEnd;
-        emit ModifyStream(_id, _newAmountPerSec, _newEnd, _payDebt);
+        emit ModifyStream(_id, _newAmountPerSec, _newEnd);
     }
 
     /// @notice Stops current stream
