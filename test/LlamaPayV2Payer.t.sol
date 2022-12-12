@@ -256,12 +256,14 @@ contract LlamaPayV2PayerTest is Test {
             20000
         );
         (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
-        (, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
+        (uint256 balance, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
             address(llamaToken)
         );
         assertEq(lastPaid, 0);
         assertEq(totalPaidPerSec, 0);
-        assertEq(llamaPayV2Payer.debts(0), 10000 * 1e20);
+        assertEq(balance, 0);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
+        assertEq(llamaPayV2Payer.debts(0), 0);
     }
 
     function testCreateStreamStartBeforeCall() external {
@@ -273,7 +275,15 @@ contract LlamaPayV2PayerTest is Test {
             5000,
             20000
         );
-        assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 5000 * 1e20);
+        assertEq(llamaPayV2Payer.debts(0), 0);assertEq(llamaPayV2Payer.debts(0), 0);
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
+        (uint256 balance, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
+            address(llamaToken)
+        );
+        assertEq(lastPaid, 10000);
+        assertEq(balance, 5000 * 1e20);
+        assertEq(totalPaidPerSec, 1e20);
     }
 
     function testUpdateStreamInactiveStream() external {
@@ -618,6 +628,50 @@ contract LlamaPayV2PayerTest is Test {
         llamaPayV2Payer.stopStream(0, true);
         llamaPayV2Payer.cancelDebt(0);
         assertEq(llamaPayV2Payer.debts(0), 0);
+        vm.stopPrank();
+    }
+
+    function testCreateStreamEndedOnCreationAndOwesDebt() external {
+        vm.startPrank(alice);
+        vm.warp(30000);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            bob,
+            1e20,
+            10000,
+            25000
+        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
+        (uint256 balance, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
+            address(llamaToken)
+        );
+        assertEq(lastPaid, 0);
+        assertEq(balance,  0);
+        assertEq(totalPaidPerSec, 0);
+        assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
+        vm.stopPrank();
+    }
+
+    function testCreateStreamStartedBeforeCallAndOwesDebt() external {
+        vm.startPrank(alice);
+        vm.warp(20000);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            bob,
+            1e20,
+            5000,
+            50000
+        );
+        (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
+        (uint256 balance, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
+            address(llamaToken)
+        );
+        assertEq(lastPaid, 20000);
+        assertEq(balance,  0);
+        assertEq(totalPaidPerSec, 1e20);
+        assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
         vm.stopPrank();
     }
 }

@@ -696,7 +696,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) private onlyOwnerAndWhitelisted returns (uint256 id) {
         if (_starts >= _ends) revert INVALID_TIME();
         _updateToken(_token);
-        if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
+        Token storage token = tokens[_token];
+        if (block.timestamp > token.lastUpdate) revert PAYER_IN_DEBT();
 
         id = nextTokenId;
         _safeMint(_to, id);
@@ -709,21 +710,34 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             ends: _ends
         });
 
-        /// Add to debt if stream already ended on creation
+        /// calculate owed if stream already ended on creation
+        uint256 owed;
         if (block.timestamp > _ends) {
-            debts[id] = (_ends - _starts) * _amountPerSec;
+            owed = (_ends - _starts) * _amountPerSec;
         }
-        /// Add to debt if start is before block.timestamp
+        /// calculated owed if start is before block.timestamp
         else if (block.timestamp > _starts) {
-            debts[id] = (block.timestamp - _starts) * _amountPerSec;
+            owed = (block.timestamp - _starts) * _amountPerSec;
             tokens[_token].totalPaidPerSec += _amountPerSec;
             streams[id].lastPaid = uint48(block.timestamp);
-        } else {
+        /// If started at timestamp or starts in the future
+        } else if (_starts >= block.timestamp) {
             tokens[_token].totalPaidPerSec += _amountPerSec;
             streams[id].lastPaid = uint48(block.timestamp);
         }
-
+        
         unchecked {
+            /// If can pay owed then directly send it to payee
+            if (token.balance >= owed) {
+                tokens[_token].balance -= owed;
+                redeemables[id] = owed;
+            } else {
+                /// If cannot pay debt, then add to debt and send entire balance to payee
+                uint256 balance = token.balance;
+                tokens[_token].balance = 0;
+                debts[id] = owed - balance;
+                redeemables[id] = balance;
+            }
             nextTokenId++;
         }
     }
