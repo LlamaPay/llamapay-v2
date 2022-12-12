@@ -402,6 +402,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Prevents people from setting end to time already "paid out"
         if (tokens[stream.token].lastUpdate >= _newEnd) revert INVALID_TIME();
 
+        /// Check if stream is active
+        /// Prevents miscalculation in totalPaidPerSec
         if (stream.lastPaid > 0) {
             tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
             unchecked {
