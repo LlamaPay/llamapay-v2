@@ -403,15 +403,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) external onlyOwnerAndWhitelisted {
         _updateStream(_id);
         Stream storage stream = streams[_id];
-        uint48 lastUpdate = tokens[stream.token].lastUpdate;
         /// Prevents people from setting end to time already "paid out"
-        if (lastUpdate >= _newEnd) revert INVALID_TIME();
+        if (tokens[stream.token].lastUpdate >= _newEnd) revert INVALID_TIME();
 
         if (stream.lastPaid > 0) {
             tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
             unchecked {
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
-                streams[_id].lastPaid = lastUpdate;
             }
         }
         streams[_id].amountPerSec = _newAmountPerSec;
