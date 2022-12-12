@@ -276,7 +276,7 @@ contract LlamaPayV2PayerTest is Test {
             20000
         );
         assertEq(llamaPayV2Payer.redeemables(0), 5000 * 1e20);
-        assertEq(llamaPayV2Payer.debts(0), 0);assertEq(llamaPayV2Payer.debts(0), 0);
+        assertEq(llamaPayV2Payer.debts(0), 0);
         (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         (uint256 balance, uint256 totalPaidPerSec, , ) = llamaPayV2Payer.tokens(
             address(llamaToken)
@@ -646,7 +646,7 @@ contract LlamaPayV2PayerTest is Test {
             address(llamaToken)
         );
         assertEq(lastPaid, 0);
-        assertEq(balance,  0);
+        assertEq(balance, 0);
         assertEq(totalPaidPerSec, 0);
         assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
         assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
@@ -668,7 +668,7 @@ contract LlamaPayV2PayerTest is Test {
             address(llamaToken)
         );
         assertEq(lastPaid, 20000);
-        assertEq(balance,  0);
+        assertEq(balance, 0);
         assertEq(totalPaidPerSec, 1e20);
         assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
         assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
