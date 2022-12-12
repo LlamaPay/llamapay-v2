@@ -669,7 +669,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         withdrawableAmount =
             (withdrawableAmount + redeemables[_id]) /
             token.divisor;
-        debt = debt / token.divisor;
+        debt = (debt + debts[_id]) / token.divisor;
     }
 
     /// @notice create stream
