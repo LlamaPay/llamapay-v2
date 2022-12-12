@@ -106,12 +106,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint256 withheldPerSec,
         string reason
     );
-    event ModifyStream(
-        uint256 id,
-        uint208 newAmountPerSec,
-        uint48 newEnd,
-        bool payDebt
-    );
+    event ModifyStream(uint256 id, uint208 newAmountPerSec, uint48 newEnd);
     event StopStream(uint256 id, bool payDebt);
     event ResumeStream(uint256 _id);
     event BurnStream(uint256 _id);
@@ -400,31 +395,24 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function modifyStream(
         uint256 _id,
         uint208 _newAmountPerSec,
-        uint48 _newEnd,
-        bool _payDebt
+        uint48 _newEnd
     ) external onlyOwnerAndWhitelisted {
         _updateStream(_id);
         Stream storage stream = streams[_id];
         /// Prevents people from setting end to time already "paid out"
-        if (block.timestamp >= _newEnd) revert INVALID_TIME();
+        if (tokens[stream.token].lastUpdate >= _newEnd) revert INVALID_TIME();
 
+        /// Check if stream is active
+        /// Prevents miscalculation in totalPaidPerSec
         if (stream.lastPaid > 0) {
             tokens[stream.token].totalPaidPerSec += _newAmountPerSec;
             unchecked {
                 tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
-                /// Track debt if payer chooses to pay debt
-                if (_payDebt) {
-                    /// Add debt owed til modify call
-                    debts[_id] +=
-                        (block.timestamp - tokens[stream.token].lastUpdate) *
-                        stream.amountPerSec;
-                }
-                streams[_id].lastPaid = uint48(block.timestamp);
             }
         }
         streams[_id].amountPerSec = _newAmountPerSec;
         streams[_id].ends = _newEnd;
-        emit ModifyStream(_id, _newAmountPerSec, _newEnd, _payDebt);
+        emit ModifyStream(_id, _newAmountPerSec, _newEnd);
     }
 
     /// @notice Stops current stream
@@ -509,13 +497,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Reverts if paying too much debt
         debts[_id] -= _amount;
         /// Add to redeemable to payee
-        unchecked {
-            /// If there is a chance of an overflow, it would've reverted by then
-            redeemables[_id] += _amount;
-        }
+        redeemables[_id] += _amount;
     }
 
-    /// @notice repay all debt
+    /// @notice attempt to repay all debt
     /// @param _id token id
     function repayAllDebt(uint256 _id) external {
         if (
@@ -528,14 +513,20 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         /// Update token to update balances
         _updateToken(token);
         uint256 totalDebt = debts[_id];
-        /// Reverts if debt cannot be paid
-        tokens[token].balance -= totalDebt;
-        debts[_id] = 0;
-        /// Add to redeemable to payee
+        uint256 balance = tokens[token].balance;
+        uint256 toPay;
         unchecked {
-            /// If there is a chance of an overflow, it would've reverted by then
-            redeemables[_id] += totalDebt;
+            if (balance >= totalDebt) {
+                tokens[token].balance -= totalDebt;
+                debts[_id] = 0;
+                toPay = totalDebt;
+            } else {
+                debts[_id] = totalDebt - balance;
+                tokens[token].balance = 0;
+                toPay = balance;
+            }
         }
+        redeemables[_id] += toPay;
     }
 
     /// Cancel debt from stream
@@ -696,7 +687,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     ) private onlyOwnerAndWhitelisted returns (uint256 id) {
         if (_starts >= _ends) revert INVALID_TIME();
         _updateToken(_token);
-        if (block.timestamp > tokens[_token].lastUpdate) revert PAYER_IN_DEBT();
+        Token storage token = tokens[_token];
+        if (block.timestamp > token.lastUpdate) revert PAYER_IN_DEBT();
 
         id = nextTokenId;
         _safeMint(_to, id);
@@ -709,21 +701,34 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             ends: _ends
         });
 
-        /// Add to debt if stream already ended on creation
+        /// calculate owed if stream already ended on creation
+        uint256 owed;
         if (block.timestamp > _ends) {
-            debts[id] = (_ends - _starts) * _amountPerSec;
+            owed = (_ends - _starts) * _amountPerSec;
         }
-        /// Add to debt if start is before block.timestamp
+        /// calculated owed if start is before block.timestamp
         else if (block.timestamp > _starts) {
-            debts[id] = (block.timestamp - _starts) * _amountPerSec;
+            owed = (block.timestamp - _starts) * _amountPerSec;
             tokens[_token].totalPaidPerSec += _amountPerSec;
             streams[id].lastPaid = uint48(block.timestamp);
-        } else {
+            /// If started at timestamp or starts in the future
+        } else if (_starts >= block.timestamp) {
             tokens[_token].totalPaidPerSec += _amountPerSec;
             streams[id].lastPaid = uint48(block.timestamp);
         }
 
         unchecked {
+            /// If can pay owed then directly send it to payee
+            if (token.balance >= owed) {
+                tokens[_token].balance -= owed;
+                redeemables[id] = owed;
+            } else {
+                /// If cannot pay debt, then add to debt and send entire balance to payee
+                uint256 balance = token.balance;
+                tokens[_token].balance = 0;
+                debts[id] = owed - balance;
+                redeemables[id] = balance;
+            }
             nextTokenId++;
         }
     }
