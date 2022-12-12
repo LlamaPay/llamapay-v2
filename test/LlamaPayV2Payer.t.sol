@@ -443,7 +443,7 @@ contract LlamaPayV2PayerTest is Test {
         );
         vm.warp(12000);
         vm.prank(alice);
-        llamaPayV2Payer.modifyStream(0, 2e20, 20000, false);
+        llamaPayV2Payer.modifyStream(0, 2e20, 20000);
         (uint208 amountPerSec, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(
             0
         );
@@ -461,21 +461,6 @@ contract LlamaPayV2PayerTest is Test {
         assertEq(llamaPayV2Payer.redeemables(0), 2000 * 1e20);
     }
 
-    function testModifyStreamDebt() external {
-        vm.startPrank(alice);
-        llamaPayV2Payer.createStream(
-            address(llamaToken),
-            bob,
-            1e20,
-            10000,
-            45000
-        );
-        vm.warp(25000);
-        llamaPayV2Payer.modifyStream(0, 2e20, 50000, true);
-        assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
-        vm.stopPrank();
-    }
-
     function testModifyStreamInactiveStream() external {
         vm.startPrank(alice);
         llamaPayV2Payer.createStream(
@@ -486,7 +471,7 @@ contract LlamaPayV2PayerTest is Test {
             20000
         );
         llamaPayV2Payer.stopStream(0, false);
-        llamaPayV2Payer.modifyStream(0, 2e20, 30000, false);
+        llamaPayV2Payer.modifyStream(0, 2e20, 30000);
         (, uint48 lastPaid, , , ) = llamaPayV2Payer.streams(0);
         (
             uint256 balance,
