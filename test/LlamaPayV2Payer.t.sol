@@ -659,4 +659,29 @@ contract LlamaPayV2PayerTest is Test {
         assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
         vm.stopPrank();
     }
+
+    function testRepayAllDebtWithDebt() external {
+        vm.startPrank(alice);
+        llamaPayV2Payer.createStream(
+            address(llamaToken),
+            bob,
+            1e20,
+            5000,
+            5000000
+        );
+        vm.warp(20000);
+        llamaPayV2Payer.stopStream(0, true);
+        assertEq(llamaPayV2Payer.debts(0), 5000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 10000 * 1e20);
+        llamaToken.approve(address(llamaPayV2Payer), 1000 * 1e18);
+        llamaPayV2Payer.deposit(address(llamaToken), 1000 * 1e18);
+        llamaPayV2Payer.repayAllDebt(0);
+        (uint256 balance,, , ) = llamaPayV2Payer.tokens(
+            address(llamaToken)
+        );
+        assertEq(balance, 0);
+        assertEq(llamaPayV2Payer.debts(0), 4000 * 1e20);
+        assertEq(llamaPayV2Payer.redeemables(0), 11000 * 1e20);
+        vm.stopPrank();
+    }
 }
