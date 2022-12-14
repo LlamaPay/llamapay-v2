@@ -133,7 +133,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     }
 
     function tokenURI(uint256 id)
-        public
+        external
         view
         virtual
         override
@@ -590,7 +590,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @return debt debt owed to stream (native decimals)
     /// @return withdrawableAmount amount withdrawable by payee (native decimals)
     function withdrawable(uint256 _id)
-        public
+        external
         view
         returns (
             uint256 lastUpdate,
@@ -612,60 +612,23 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         }
 
         /// Inactive or cancelled stream
-        if (stream.lastPaid == 0 || stream.starts > block.timestamp) {}
-        /// Stream not updated after start and has ended
-        else if (
-            stream.starts > stream.lastPaid && block.timestamp >= stream.ends
-        ) {
-            /// if payer is in debt
-            if (stream.ends > lastUpdate) {
-                debt = (stream.ends - lastUpdate) * stream.amountPerSec;
-                withdrawableAmount =
-                    (lastUpdate - stream.starts) *
-                    stream.amountPerSec;
-            } else {
-                withdrawableAmount =
-                    (stream.ends - stream.starts) *
-                    stream.amountPerSec;
-            }
+        if (stream.lastPaid == 0 || stream.starts > block.timestamp) {
+            return (0, 0, 0);
         }
-        /// Stream started but has not been updated from before start
-        else if (
-            block.timestamp >= stream.starts && stream.starts > stream.lastPaid
-        ) {
-            /// if in debt before stream start
-            if (stream.starts > lastUpdate) {
-                debt = (block.timestamp - stream.starts) * stream.amountPerSec;
-            } else {
-                withdrawableAmount =
-                    (lastUpdate - stream.starts) *
-                    stream.amountPerSec;
-                debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
-            }
+
+        uint256 start = max(stream.lastPaid, stream.starts);
+        uint256 stop = min(stream.ends, lastUpdate);
+        // If lastUpdate isn't block.timestamp and greater than ends, there is debt.
+        if (lastUpdate != block.timestamp && stream.ends > lastUpdate) {
+            debt = (min(block.timestamp, stream.ends) - max(lastUpdate, stream.starts)) * stream.amountPerSec;
         }
-        /// Stream has ended
-        else if (block.timestamp >= stream.ends) {
-            /// If in debt
-            if (stream.ends > lastUpdate) {
-                debt = (stream.ends * lastUpdate) * stream.amountPerSec;
-                withdrawableAmount =
-                    (lastUpdate - stream.lastPaid) *
-                    stream.amountPerSec;
-            } else {
-                withdrawableAmount =
-                    (stream.ends - stream.lastPaid) *
-                    stream.amountPerSec;
-            }
-        }
-        /// Updated after start, and has not ended
-        else if (
-            stream.lastPaid >= stream.starts && stream.ends > block.timestamp
-        ) {
-            withdrawableAmount =
-                (lastUpdate - stream.lastPaid) *
-                stream.amountPerSec;
-            debt = (block.timestamp - lastUpdate) * stream.amountPerSec;
-        }
+        withdrawableAmount = (stop - start) * stream.amountPerSec;
+
+        withdrawableAmount =
+            (withdrawableAmount + redeemables[_id]) /
+            token.divisor;
+        debt = (debt + debts[_id]) / token.divisor;
+
         withdrawableAmount =
             (withdrawableAmount + redeemables[_id]) /
             token.divisor;
@@ -856,5 +819,13 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 streams[_id].lastPaid = lastUpdate;
             }
         }
+    }
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
+    }
+
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
     }
 }
