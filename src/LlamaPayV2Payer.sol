@@ -589,7 +589,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @return lastUpdate last time Token has been updated
     /// @return debt debt owed to stream (native decimals)
     /// @return withdrawableAmount amount withdrawable by payee (native decimals)
-    function withdrawable(uint256 _id)
+    function withdrawablei(uint256 _id)
         external
         view
         returns (
@@ -623,11 +623,6 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             debt = (min(block.timestamp, stream.ends) - max(lastUpdate, stream.starts)) * stream.amountPerSec;
         }
         withdrawableAmount = (stop - start) * stream.amountPerSec;
-
-        withdrawableAmount =
-            (withdrawableAmount + redeemables[_id]) /
-            token.divisor;
-        debt = (debt + debts[_id]) / token.divisor;
 
         withdrawableAmount =
             (withdrawableAmount + redeemables[_id]) /
