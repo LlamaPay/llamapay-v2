@@ -25,7 +25,6 @@ contract LlamaPayV2Factory {
         unchecked {
             amtOfPayers++;
         }
-        param = address(0);
         emit LlamaPayContractCreated(msg.sender, llamapay);
     }
 
