@@ -471,7 +471,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @return lastUpdate last time Token has been updated
     /// @return debt debt owed to stream (native decimals)
     /// @return withdrawableAmount amount withdrawable by payee (native decimals)
-    function withdrawablei(uint256 _id)
+    function withdrawable(uint256 _id)
         external
         view
         returns (
