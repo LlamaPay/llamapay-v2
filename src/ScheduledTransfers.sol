@@ -124,14 +124,11 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         unchecked {
             if (updatedTimestamp >= payment.ends) {
                 if (_timestamp != payment.ends) revert INVALID_TIMESTAMP();
-                owed =
-                    ((payment.ends - payment.lastPaid) *
-                        (payment.usdAmount / payment.frequency)) /
-                    _price;
+                owed = ((payment.ends - payment.lastPaid) * payment.usdAmount * _price) / payment.frequency;
                 payments[_id].lastPaid = payment.ends;
             } else {
                 if (_timestamp != updatedTimestamp) revert INVALID_TIMESTAMP();
-                owed = payment.usdAmount / _price;
+                owed = payment.usdAmount * _price;
                 payments[_id].lastPaid = uint32(updatedTimestamp);
             }
         }
@@ -142,7 +139,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         } else {
             to = nftOwner;
         }
-        ERC20(payment.token).safeTransfer(to, owed);
+        ERC20(payment.token).safeTransfer(to, owed / 1e18);
     }
 
     function addRedirect(uint256 _id, address _redirectTo) external {
