@@ -142,14 +142,9 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         ERC20(payment.token).safeTransfer(to, owed / 1e18);
     }
 
-    function addRedirect(uint256 _id, address _redirectTo) external {
+    function setRedirect(uint256 _id, address _redirectTo) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[_id] = _redirectTo;
-    }
-
-    function removeRedirect(uint256 _id) external {
-        if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
-        redirects[_id] = address(0);
     }
 
     function addWhitelist(uint256 _id, address _toAdd) external {
