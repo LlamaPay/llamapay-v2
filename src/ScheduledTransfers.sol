@@ -108,7 +108,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         address resolved = ecrecover(
             keccak256(
                 abi.encodePacked(
-                    "\x19Ethereum Signed Message:\n111",
+                    "\x19Ethereum Signed Message:\n96",
                     _price,
                     _timestamp,
                     block.chainid
