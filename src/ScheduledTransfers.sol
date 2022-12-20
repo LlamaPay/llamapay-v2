@@ -16,6 +16,7 @@ error NOT_OWNER();
 error NOT_ORACLE();
 error NOT_OWNER_OR_WHITELISTED();
 error INVALID_TIMESTAMP();
+error MAX_PRICE();
 
 contract ScheduledTransfers is ERC721, BoringBatchable {
     using SafeTransferLib for ERC20;
@@ -35,6 +36,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     mapping(uint256 => Payment) public payments;
     mapping(uint256 => address) public redirects;
+    mapping(address => uint256) public maxPrice;
 
     constructor(address _oracle)
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY")
@@ -115,6 +117,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
             r,
             s
         );
+        if (price > maxPrice[payment.token]) revert MAX_PRICE();
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
         if (resolved != oracle) revert NOT_ORACLE();
         uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
@@ -148,5 +151,10 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     function changeOracle(address newOracle) external {
         if (msg.sender != owner) revert NOT_OWNER();
         oracle = newOracle;
+    }
+
+    function setMaxPrice(address token, uint newMaxPrice) external {
+        if (msg.sender != owner) revert NOT_OWNER();
+        maxPrice[token] = newMaxPrice;
     }
 }
