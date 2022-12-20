@@ -28,20 +28,21 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 usdAmount;
     }
 
+    address public oracle;
     address public owner;
     address public llamaPayV2;
     uint256 public nextTokenId;
 
     mapping(uint256 => Payment) public payments;
-    mapping(uint256 => address) public oracles;
     mapping(uint256 => address) public redirects;
     mapping(uint256 => mapping(address => uint256)) public whitelists;
 
-    constructor()
-        ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY-V2-TRANSFER")
+    constructor(address _oracle)
+        ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY")
     {
         llamaPayV2 = ScheduledTransfersFactory(msg.sender).param();
         owner = LlamaPayV2Payer(llamaPayV2).owner();
+        oracle = _oracle;
     }
 
     modifier onlyOwnerAndWhitelisted() {
@@ -64,7 +65,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     function scheduleTransfer(
         address _token,
-        address _oracle,
         address _to,
         uint256 _usdAmount,
         uint32 _starts,
@@ -80,7 +80,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
             frequency: _frequency,
             usdAmount: _usdAmount
         });
-        oracles[id] = _oracle;
         unchecked {
             nextTokenId++;
         }
@@ -119,7 +118,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
             s
         );
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
-        if (resolved != oracles[_id]) revert NOT_ORACLE();
+        if (resolved != oracle) revert NOT_ORACLE();
         uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
         uint256 owed;
         unchecked {
@@ -164,5 +163,10 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     function removeWhitelist(uint256 _id, address _toRemove) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         whitelists[_id][_toRemove] = 0;
+    }
+
+    function changeOracle(address newOracle) external {
+        if (msg.sender != owner) revert NOT_OWNER();
+        oracle = newOracle;
     }
 }
