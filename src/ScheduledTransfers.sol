@@ -35,7 +35,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     mapping(uint256 => Payment) public payments;
     mapping(uint256 => address) public redirects;
-    mapping(uint256 => mapping(address => uint256)) public whitelists;
 
     constructor(address _oracle)
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY")
@@ -100,8 +99,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         address nftOwner = ownerOf(_id);
         if (
             msg.sender != nftOwner &&
-            msg.sender != owner &&
-            whitelists[_id][msg.sender] != 1
+            msg.sender != owner
         ) revert NOT_OWNER_OR_WHITELISTED();
         Payment storage payment = payments[_id];
         address resolved = ecrecover(
@@ -145,16 +143,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     function setRedirect(uint256 _id, address _redirectTo) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[_id] = _redirectTo;
-    }
-
-    function addWhitelist(uint256 _id, address _toAdd) external {
-        if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
-        whitelists[_id][_toAdd] = 1;
-    }
-
-    function removeWhitelist(uint256 _id, address _toRemove) external {
-        if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
-        whitelists[_id][_toRemove] = 0;
     }
 
     function changeOracle(address newOracle) external {
