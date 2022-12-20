@@ -5,7 +5,6 @@ pragma solidity ^0.8.17;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import {LlamaPayV2Payer} from "./LlamaPayV2Payer.sol";
 import "./BoringBatchable.sol";
 
 interface ScheduledTransfersFactory {
@@ -31,26 +30,21 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     address public oracle;
     address public owner;
-    address public llamaPayV2;
     uint256 public nextTokenId;
 
     mapping(uint256 => Payment) public payments;
     mapping(uint256 => address) public redirects;
     mapping(address => uint256) public maxPrice;
 
-    constructor(address _oracle)
+    constructor(address _oracle, address _owner)
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY")
     {
-        llamaPayV2 = ScheduledTransfersFactory(msg.sender).param();
-        owner = LlamaPayV2Payer(llamaPayV2).owner();
+        owner = _owner;
         oracle = _oracle;
     }
 
-    modifier onlyOwnerAndWhitelisted() {
-        if (
-            msg.sender != owner &&
-            LlamaPayV2Payer(llamaPayV2).payerWhitelists(msg.sender) != 1
-        ) revert NOT_OWNER_OR_WHITELISTED();
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NOT_OWNER();
         _;
     }
 
@@ -71,7 +65,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint32 _starts,
         uint32 _ends,
         uint32 _frequency
-    ) external onlyOwnerAndWhitelisted {
+    ) external onlyOwner {
         uint256 id = nextTokenId;
         _safeMint(_to, id);
         payments[id] = Payment({
@@ -86,40 +80,23 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         }
     }
 
-    function cancelTransfer(uint256 _id) external onlyOwnerAndWhitelisted {
+    function cancelTransfer(uint256 _id) external onlyOwner {
         payments[_id].ends = uint32(block.timestamp);
+    }
+
+    function withdrawPayer(address token, uint amount) external onlyOwner {
+        ERC20(payment.token).safeTransfer(owner, amount);
     }
 
     function withdraw(
         uint256 _id,
         uint256 _price,
-        uint256 _timestamp,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        uint256 _timestamp
     ) external {
-        address nftOwner = ownerOf(_id);
-        if (
-            msg.sender != nftOwner &&
-            msg.sender != owner
-        ) revert NOT_OWNER_OR_WHITELISTED();
-        Payment storage payment = payments[_id];
-        address resolved = ecrecover(
-            keccak256(
-                abi.encodePacked(
-                    "\x19Ethereum Signed Message:\n96",
-                    _price,
-                    _timestamp,
-                    block.chainid
-                )
-            ),
-            v,
-            r,
-            s
-        );
+        if (msg.sender != oracle) revert NOT_ORACLE();
         if (price > maxPrice[payment.token]) revert MAX_PRICE();
+        Payment storage payment = payments[_id];
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
-        if (resolved != oracle) revert NOT_ORACLE();
         uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
         uint256 owed;
         unchecked {
@@ -148,13 +125,11 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         redirects[_id] = _redirectTo;
     }
 
-    function changeOracle(address newOracle) external {
-        if (msg.sender != owner) revert NOT_OWNER();
+    function changeOracle(address newOracle) external onlyOwner {
         oracle = newOracle;
     }
 
-    function setMaxPrice(address token, uint newMaxPrice) external {
-        if (msg.sender != owner) revert NOT_OWNER();
+    function setMaxPrice(address token, uint newMaxPrice) external onlyOwner {
         maxPrice[token] = newMaxPrice;
     }
 }
