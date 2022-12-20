@@ -28,14 +28,15 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 usdAmount;
     }
 
+    string public constant baseURI = "https://nft.llamapay.io/scheduled/";
     address public oracle;
-    address public owner;
+    address public immutable owner;
     uint256 public nextTokenId;
 
     mapping(uint256 => Payment) public payments;
     mapping(uint256 => address) public redirects;
     mapping(address => uint256) public maxPrice;
-
+    
     constructor(address _oracle, address _owner)
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY")
     {
@@ -48,14 +49,25 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         _;
     }
 
-    function tokenURI(uint256 id)
+    function tokenURI(uint256 _id)
         public
         view
         virtual
         override
         returns (string memory)
     {
-        return "";
+        if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
+        return
+            string(
+                abi.encodePacked(
+                    baseURI,
+                    Strings.toString(block.chainid),
+                    "/",
+                    Strings.toHexString(uint160(address(this)), 20),
+                    "/",
+                    Strings.toString(_id)
+                )
+            );
     }
 
     function scheduleTransfer(
@@ -84,7 +96,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         payments[_id].ends = uint32(block.timestamp);
     }
 
-    function withdrawPayer(address token, uint amount) external onlyOwner {
+    function withdrawPayer(address token, uint256 amount) external onlyOwner {
         ERC20(payment.token).safeTransfer(owner, amount);
     }
 
@@ -102,7 +114,11 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         unchecked {
             if (updatedTimestamp >= payment.ends) {
                 if (_timestamp != payment.ends) revert INVALID_TIMESTAMP();
-                owed = ((payment.ends - payment.lastPaid) * payment.usdAmount * _price) / payment.frequency;
+                owed =
+                    ((payment.ends - payment.lastPaid) *
+                        payment.usdAmount *
+                        _price) /
+                    payment.frequency;
                 payments[_id].lastPaid = payment.ends;
             } else {
                 if (_timestamp != updatedTimestamp) revert INVALID_TIMESTAMP();
@@ -129,7 +145,10 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         oracle = newOracle;
     }
 
-    function setMaxPrice(address token, uint newMaxPrice) external onlyOwner {
+    function setMaxPrice(address token, uint256 newMaxPrice)
+        external
+        onlyOwner
+    {
         maxPrice[token] = newMaxPrice;
     }
 }
