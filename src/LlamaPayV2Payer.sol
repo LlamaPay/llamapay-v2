@@ -5,6 +5,7 @@ pragma solidity ^0.8.17;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import "openzeppelin-contracts/contracts/utils/Strings.sol";
 import "./forks/BoringBatchable.sol";
 
 interface Factory {
@@ -15,7 +16,6 @@ error NOT_OWNER();
 error NOT_OWNER_OR_WHITELISTED();
 error INVALID_ADDRESS();
 error INVALID_TIME();
-error INVALID_STREAM();
 error PAYER_IN_DEBT();
 error INACTIVE_STREAM();
 error ACTIVE_STREAM();
@@ -48,6 +48,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     }
 
     address public immutable owner;
+    string public constant baseURI = "https://nft.llamapay.io/stream/";
     uint256 public nextTokenId;
 
     mapping(address => Token) public tokens;
@@ -132,14 +133,25 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         _;
     }
 
-    function tokenURI(uint256 id)
+    function tokenURI(uint256 _id)
         public
         view
         virtual
         override
         returns (string memory)
     {
-        return "";
+        if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
+        return
+            string(
+                abi.encodePacked(
+                    baseURI,
+                    Strings.toString(block.chainid),
+                    "/",
+                    Strings.toHexString(uint160(address(this)), 20),
+                    "/",
+                    Strings.toString(_id)
+                )
+            );
     }
 
     /// @notice deposit into vault (anybody can deposit)
