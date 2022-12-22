@@ -133,7 +133,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     }
 
     function tokenURI(uint256 id)
-        external
+        public
         view
         virtual
         override

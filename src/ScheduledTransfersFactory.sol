@@ -18,17 +18,20 @@ contract ScheduledTransfersFactory {
         keccak256(type(ScheduledTransfers).creationCode);
 
     address public factory;
-    address public param;
+
+    address public owner;
+    address public oracle;
 
     constructor(address _factory) {
         factory = _factory;
     }
 
-    function createContract() external returns (address createdContract) {
+    function createContract(address _oracle) external returns (address createdContract) {
         (address predicted, bool deployed) = LlamaPayV2Factory(factory)
             .calculateLlamaPayAddress(msg.sender);
         if (!deployed) revert LLAMAPAY_DOESNT_EXIST();
-        param = predicted;
+        owner = msg.sender;
+        oracle = _oracle;
         createdContract = address(
             new ScheduledTransfers{
                 salt: bytes32(uint256(uint160(msg.sender)))
