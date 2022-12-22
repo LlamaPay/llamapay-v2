@@ -12,6 +12,7 @@ contract LlamaPayV2FactoryTest is Test {
     address public immutable alice = address(1);
     address public immutable bob = address(2);
     address public immutable steve = address(3);
+    
 
     function setUp() public {
         llamaPayV2Factory = new LlamaPayV2Factory();
@@ -51,6 +52,14 @@ contract LlamaPayV2FactoryTest is Test {
             .calculateLlamaPayAddress(steve);
         assertEq(payerContract, predictedAddress);
         assertEq(deployed, true);
+    }
+
+    function testCreateMultiplePayer2() external {
+        for (uint256 index = 10; index < 110; index++) {
+            address aaaa = address(uint160(index));
+            vm.prank(aaaa);
+            llamaPayV2Factory.createLlamaPayContract();
+        }
     }
 
     function testRevertsIfCreatedTwice() external {

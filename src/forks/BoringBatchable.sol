@@ -9,31 +9,23 @@ pragma experimental ABIEncoderV2;
 // Combining BoringBatchable with msg.value can cause double spending issues
 // https://www.paradigm.xyz/2021/08/two-rights-might-make-a-wrong/
 
-interface IERC20Permit{
-     /// @notice EIP 2612
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
-}
+import "./interfaces/IERC20.sol";
 
 contract BaseBoringBatchable {
+    error BatchError(bytes innerError);
+
     /// @dev Helper function to extract a useful revert message from a failed call.
     /// If the returned data is malformed or not correctly abi encoded then this call can fail itself.
-    function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
-        // If the _res length is less than 68, then the transaction failed silently (without a revert message)
-        if (_returnData.length < 68) return "Transaction reverted silently";
+    function _getRevertMsg(bytes memory _returnData) internal pure{
+        // If the _res length is less than 68, then
+        // the transaction failed with custom error or silently (without a revert message)
+        if (_returnData.length < 68) revert BatchError(_returnData);
 
         assembly {
             // Slice the sighash.
             _returnData := add(_returnData, 0x04)
         }
-        return abi.decode(_returnData, (string)); // All that remains is the revert string
+        revert(abi.decode(_returnData, (string))); // All that remains is the revert string
     }
 
     /// @notice Allows batched call to self (this contract).
@@ -47,7 +39,7 @@ contract BaseBoringBatchable {
         for (uint256 i = 0; i < calls.length; i++) {
             (bool success, bytes memory result) = address(this).delegatecall(calls[i]);
             if (!success && revertOnFail) {
-                revert(_getRevertMsg(result));
+                _getRevertMsg(result);
             }
         }
     }
@@ -59,7 +51,7 @@ contract BoringBatchable is BaseBoringBatchable {
     // F6: Parameters can be used front-run the permit and the user's permit will fail (due to nonce or other revert)
     //     if part of a batch this could be used to grief once as the second call would not need the permit
     function permitToken(
-        IERC20Permit token,
+        IERC20 token,
         address from,
         address to,
         uint256 amount,

@@ -31,7 +31,7 @@ contract LlamaPayV2Factory {
     /// @notice Calculates CREATE2 address for payer
     /// @param _owner owner
     function calculateLlamaPayAddress(address _owner)
-        public
+        external
         view
         returns (address predicted, bool deployed)
     {
