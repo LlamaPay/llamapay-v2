@@ -124,21 +124,11 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         Payment storage payment = payments[_id];
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
         uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
+        if(_timestamp > updatedTimestamp) revert INVALID_TIMESTAMP();
         uint256 owed;
         unchecked {
-            if (updatedTimestamp >= payment.ends) {
-                if (_timestamp != payment.ends) revert INVALID_TIMESTAMP();
-                owed =
-                    ((payment.ends - payment.lastPaid) *
-                        payment.usdAmount *
-                        _price) /
-                    payment.frequency;
-                payments[_id].lastPaid = payment.ends;
-            } else {
-                if (_timestamp != updatedTimestamp) revert INVALID_TIMESTAMP();
-                owed = payment.usdAmount * _price;
-                payments[_id].lastPaid = uint32(updatedTimestamp);
-            }
+            owed = ((_timestamp - payment.lastPaid) * payment.usdAmount * _price) / payment.frequency;
+            payments[_id].lastPaid = uint32(updatedTimestamp);
         }
         address to;
         address redirect = redirects[_id];
