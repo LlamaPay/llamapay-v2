@@ -101,12 +101,26 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     }
 
     function withdraw(
-        uint256 _id,
+        uint256[] ids,
         uint256 _price,
         uint256 _timestamp
     ) external {
         if (msg.sender != oracle) revert NOT_ORACLE();
         if (price > maxPrice[payment.token]) revert MAX_PRICE();
+        uint i = 0;
+        while(i<ids.length){
+            _withdraw(ids[i], _price, _timestamp);
+            unchecked {
+                i++;
+            }
+        }
+    }
+
+    function _withdraw(
+        uint256 _id,
+        uint256 _price,
+        uint256 _timestamp
+    ) private {
         Payment storage payment = payments[_id];
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
         uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
