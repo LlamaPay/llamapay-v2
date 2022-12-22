@@ -104,7 +104,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint48 ends
     );
     event ModifyStream(uint256 id, uint208 newAmountPerSec, uint48 newEnd);
-    event StopStream(uint256 id, bool payDebt);
+    event StopStream(uint256 id);
     event ResumeStream(uint256 _id);
     event BurnStream(uint256 _id);
     event AddPayerWhitelist(address indexed whitelisted);
@@ -321,8 +321,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
     /// @notice Stops current stream
     /// @param _id token id
-    /// @param _payDebt choose to pay debt
-    function stopStream(uint256 _id, bool _payDebt)
+    function stopStream(uint256 _id)
         external
         onlyOwnerOrWhitelisted
     {
@@ -337,7 +336,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             streams[_id].lastPaid = 0;
             tokens[stream.token].totalPaidPerSec -= stream.amountPerSec;
         }
-        emit StopStream(_id, _payDebt);
+        emit StopStream(_id);
     }
 
     /// @notice resumes a stopped stream
