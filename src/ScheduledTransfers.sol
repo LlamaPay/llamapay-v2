@@ -6,7 +6,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import "openzeppelin-contracts/contracts/utils/Strings.sol";
-import "./BoringBatchable.sol";
+import "./forks/BoringBatchable.sol";
 
 interface ScheduledTransfersFactory {
     function owner() external view returns (address);
@@ -33,15 +33,15 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     }
 
     string public constant baseURI = "https://nft.llamapay.io/scheduled/";
-    address public immutable oracle;
-    address public immutable owner;
+    address public oracle;
+    address public owner;
     uint256 public nextTokenId;
 
     mapping(uint256 => Payment) public payments;
     mapping(uint256 => address) public redirects;
     mapping(address => uint256) public maxPrice;
 
-    constructor(address _oracle, address _owner)
+    constructor()
         ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY")
     {
         oracle = ScheduledTransfersFactory(msg.sender).oracle();

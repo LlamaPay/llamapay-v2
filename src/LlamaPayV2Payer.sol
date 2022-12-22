@@ -47,7 +47,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint48 ends;
     }
 
-    address public immutable owner;
+    address public owner;
     string public constant baseURI = "https://nft.llamapay.io/stream/";
     uint256 public nextTokenId;
 

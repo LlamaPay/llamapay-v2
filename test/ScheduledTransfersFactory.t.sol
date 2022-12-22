@@ -22,7 +22,7 @@ contract ScheduledTransfersFactoryTest is Test {
 
     function testCreate() public {
         vm.prank(alice);
-        address created = address(scheduledTransfersFactory.createContract());
+        address created = address(scheduledTransfersFactory.createContract(bob));
         (address predictedAddress, bool deployed) = scheduledTransfersFactory.predictContract(alice);
         assertEq(created, predictedAddress);
         assertEq(deployed, true);

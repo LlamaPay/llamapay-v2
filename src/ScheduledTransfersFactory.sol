@@ -27,7 +27,7 @@ contract ScheduledTransfersFactory {
     }
 
     function createContract(address _oracle) external returns (address createdContract) {
-        (address predicted, bool deployed) = LlamaPayV2Factory(factory)
+        (, bool deployed) = LlamaPayV2Factory(factory)
             .calculateLlamaPayAddress(msg.sender);
         if (!deployed) revert LLAMAPAY_DOESNT_EXIST();
         owner = msg.sender;
