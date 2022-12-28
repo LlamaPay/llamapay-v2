@@ -123,6 +123,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         if (_timestamp > block.timestamp) revert FUTURE_TIMESTAMP();
         if (msg.sender != oracle) revert NOT_ORACLE();
         if (_price > maxPrice) revert MAX_PRICE();
+        if (token != _token) revert INVALID_TOKEN();
         uint256 i = 0;
         uint256 length = ids.length;
         while (i < length) {
@@ -141,7 +142,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     ) private {
         Payment storage payment = payments[_id];
         if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
-        if (token != _token) revert INVALID_TOKEN();
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
         uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
         if (_timestamp > updatedTimestamp) revert INVALID_TIMESTAMP();
@@ -165,7 +165,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     function setRedirect(uint256 _id, address _redirectTo) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
-        if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
         redirects[msg.sender][_id] = _redirectTo;
     }
 
