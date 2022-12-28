@@ -30,10 +30,10 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     using SafeTransferLib for ERC20;
 
     struct Payment {
-        uint88 lastPaid;
-        uint88 ends;
-        uint80 frequency;
-        uint256 usdAmount;
+        uint32 lastPaid;
+        uint32 ends;
+        uint32 frequency;
+        uint160 usdAmount;
     }
 
     string public constant baseURI = "https://nft.llamapay.io/scheduled/";
@@ -80,10 +80,10 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     function scheduleTransfer(
         address _to,
-        uint256 _usdAmount,
-        uint88 _starts,
-        uint88 _ends,
-        uint80 _frequency
+        uint160 _usdAmount,
+        uint32 _starts,
+        uint32 _ends,
+        uint32 _frequency
     ) external onlyOwner {
         uint256 id = nextTokenId;
         _safeMint(_to, id);
@@ -120,11 +120,11 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 _price,
         uint256 _timestamp
     ) external {
-        if(_timestamp > block.timestamp) revert FUTURE_TIMESTAMP();
+        if (_timestamp > block.timestamp) revert FUTURE_TIMESTAMP();
         if (msg.sender != oracle) revert NOT_ORACLE();
         if (_price > maxPrice) revert MAX_PRICE();
         uint256 i = 0;
-        uint length = ids.length;
+        uint256 length = ids.length;
         while (i < length) {
             _withdraw(ids[i], _token, _price, _timestamp);
             unchecked {
