@@ -20,6 +20,7 @@ error NOT_OWNER();
 error NOT_ORACLE();
 error NOT_OWNER_OR_WHITELISTED();
 error INVALID_TIMESTAMP();
+error FUTURE_TIMESTAMP();
 error MAX_PRICE();
 error STREAM_DOES_NOT_EXIST();
 error INVALID_TOKEN();
@@ -119,10 +120,12 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 _price,
         uint256 _timestamp
     ) external {
+        if(_timestamp > block.timestamp) revert FUTURE_TIMESTAMP();
         if (msg.sender != oracle) revert NOT_ORACLE();
         if (_price > maxPrice) revert MAX_PRICE();
         uint256 i = 0;
-        while (i < ids.length) {
+        uint length = ids.length;
+        while (i < length) {
             _withdraw(ids[i], _token, _price, _timestamp);
             unchecked {
                 i++;
