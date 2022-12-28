@@ -4,36 +4,21 @@ pragma solidity ^0.8.17;
 
 import {ScheduledTransfers} from "./ScheduledTransfers.sol";
 
-interface LlamaPayV2Factory {
-    function calculateLlamaPayAddress(address)
-        external
-        view
-        returns (address, bool);
-}
-
 error LLAMAPAY_DOESNT_EXIST();
 
 contract ScheduledTransfersFactory {
     bytes32 constant INIT_CODEHASH =
         keccak256(type(ScheduledTransfers).creationCode);
 
-    address public factory;
-    address public param;
+    event PoolCreated(address pool, address owner);
 
-    constructor(address _factory) {
-        factory = _factory;
-    }
-
-    function createContract() external returns (address createdContract) {
-        (address predicted, bool deployed) = LlamaPayV2Factory(factory)
-            .calculateLlamaPayAddress(msg.sender);
-        if (!deployed) revert LLAMAPAY_DOESNT_EXIST();
-        param = predicted;
+    function createContract(address _oracle) external returns (address createdContract) {
         createdContract = address(
             new ScheduledTransfers{
                 salt: bytes32(uint256(uint160(msg.sender)))
-            }()
+            }(_oracle, msg.sender)
         );
+        emit PoolCreated(createdContract, msg.sender);
     }
 
     function predictContract(address _owner)
