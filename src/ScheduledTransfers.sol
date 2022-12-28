@@ -127,7 +127,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 i = 0;
         uint256 length = ids.length;
         while (i < length) {
-            _withdraw(ids[i], _token, _price, _timestamp);
+            _withdraw(ids[i], _price, _timestamp);
             unchecked {
                 i++;
             }
@@ -136,7 +136,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     function _withdraw(
         uint256 _id,
-        address _token,
         uint256 _price,
         uint256 _timestamp
     ) private {
