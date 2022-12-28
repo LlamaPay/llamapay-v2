@@ -56,7 +56,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     );
     event CancelTransfer(uint256 id);
     event BurnStream(uint256 id);
-    event WithdrawPayer(uint256 amount);
+    event WithdrawPayer(address token, uint256 amount);
     event Withdraw(
         uint256 id,
         address to,
@@ -137,9 +137,9 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         emit BurnStream(_id);
     }
 
-    function withdrawPayer(uint256 amount) external onlyOwner {
-        ERC20(token).safeTransfer(owner, amount);
-        emit WithdrawPayer(amount);
+    function withdrawPayer(address _token, uint256 _amount) external onlyOwner {
+        ERC20(_token).safeTransfer(owner, _amount);
+        emit WithdrawPayer(_token, _amount);
     }
 
     function withdraw(
