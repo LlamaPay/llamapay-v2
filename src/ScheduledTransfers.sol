@@ -46,6 +46,30 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     mapping(uint256 => Payment) public payments;
     mapping(address => mapping(uint256 => address)) public redirects;
 
+    event ScheduleTransfer(
+        uint256 id,
+        address to,
+        uint160 usdAmount,
+        uint32 starts,
+        uint32 ends,
+        uint32 frequency
+    );
+    event CancelTransfer(uint256 id);
+    event BurnStream(uint256 id);
+    event WithdrawPayer(uint256 amount);
+    event Withdraw(
+        uint256 id,
+        address to,
+        uint256 owed,
+        uint160 usdAmount,
+        uint256 price,
+        uint256 timestamp,
+        uint256 lastPaid
+    );
+    event SetRedirect(address caller, uint256 id, address redirectTo);
+    event ChangeOracle(address newOracle);
+    event SetMaxPrice(uint256 newMaxprice);
+
     constructor() ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY") {
         oracle = ScheduledTransfersFactory(msg.sender).oracle();
         owner = ScheduledTransfersFactory(msg.sender).owner();
@@ -96,11 +120,13 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         unchecked {
             nextTokenId++;
         }
+        emit ScheduleTransfer(id, _to, _usdAmount, _starts, _ends, _frequency);
     }
 
     function cancelTransfer(uint256 _id) external onlyOwner {
         if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
         payments[_id].ends = uint32(block.timestamp);
+        emit CancelTransfer(_id);
     }
 
     /// STILL EXERCISE CAUTION WHEN USING THIS FUNCTION
@@ -108,10 +134,12 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         if (ownerOf(_id) != msg.sender) revert NOT_OWNER();
         if (payments[_id].ends >= block.timestamp) revert STREAM_ACTIVE();
         _burn(_id);
+        emit BurnStream(_id);
     }
 
     function withdrawPayer(uint256 amount) external onlyOwner {
         ERC20(token).safeTransfer(owner, amount);
+        emit WithdrawPayer(amount);
     }
 
     function withdraw(
@@ -159,19 +187,34 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         } else {
             to = redirect;
         }
-        ERC20(token).safeTransfer(to, owed / 1e18);
+        unchecked {
+            owed = owed / 1e18;
+        }
+        ERC20(token).safeTransfer(to, owed);
+        emit Withdraw(
+            _id,
+            to,
+            owed,
+            payment.usdAmount,
+            _price,
+            _timestamp,
+            updatedTimestamp
+        );
     }
 
     function setRedirect(uint256 _id, address _redirectTo) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         redirects[msg.sender][_id] = _redirectTo;
+        emit SetRedirect(msg.sender, _id, _redirectTo);
     }
 
     function changeOracle(address newOracle) external onlyOwner {
         oracle = newOracle;
+        emit ChangeOracle(newOracle);
     }
 
     function setMaxPrice(uint256 newMaxPrice) external onlyOwner {
         maxPrice = newMaxPrice;
+        emit SetMaxPrice(newMaxPrice);
     }
 }
