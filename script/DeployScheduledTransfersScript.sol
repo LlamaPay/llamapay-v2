@@ -12,11 +12,11 @@ contract DeployScheduledTransfersScript is Script {
         vm.startBroadcast(deployerPrivateKey);
         ScheduledTransfersFactory factory = new ScheduledTransfersFactory{
             salt: bytes32("llamao")
-        }(0xF1F26856B93a93602E2B589A6B63CDE87480D352);
-        factory.createContract(address(0));
+        }();
+        factory.createContract(address(0), address(0));
         vm.stopBroadcast();
         vm.startBroadcast(otherPrivateKey);
-        factory.createContract(address(0));
+        factory.createContract(address(0), address(0));
         vm.stopBroadcast();
     }
 }

@@ -3,54 +3,28 @@
 pragma solidity ^0.8.17;
 
 import {ScheduledTransfers} from "./ScheduledTransfers.sol";
+import "./forks/BoringBatchable.sol";
 
-error LLAMAPAY_DOESNT_EXIST();
-
-contract ScheduledTransfersFactory {
-    bytes32 constant INIT_CODEHASH =
-        keccak256(type(ScheduledTransfers).creationCode);
-
-    address public factory;
-
+contract ScheduledTransfersFactory is BoringBatchable {
     address public owner;
     address public oracle;
+    address public token;
 
-    event PoolCreated(address pool, address owner);
+    event PoolCreated(
+        address pool,
+        address owner,
+        address token,
+        address oracle
+    );
 
-    constructor(address _factory) {
-        factory = _factory;
-    }
-
-    function createContract(address _oracle) external returns (address createdContract) {
+    function createContract(address _oracle, address _token)
+        external
+        returns (address createdContract)
+    {
         owner = msg.sender;
         oracle = _oracle;
-        createdContract = address(
-            new ScheduledTransfers{
-                salt: bytes32(uint256(uint160(msg.sender)))
-            }()
-        );
-        emit PoolCreated(createdContract, msg.sender);
-    }
-
-    function predictContract(address _owner)
-        public
-        view
-        returns (address predicted, bool deployed)
-    {
-        predicted = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff),
-                            address(this),
-                            bytes32(uint256(uint160(_owner))),
-                            INIT_CODEHASH
-                        )
-                    )
-                )
-            )
-        );
-        deployed = predicted.code.length != 0;
+        token = _token;
+        createdContract = address(new ScheduledTransfers());
+        emit PoolCreated(createdContract, msg.sender, _token, _oracle);
     }
 }

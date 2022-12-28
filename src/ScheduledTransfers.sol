@@ -10,7 +10,10 @@ import "./forks/BoringBatchable.sol";
 
 interface ScheduledTransfersFactory {
     function owner() external view returns (address);
+
     function oracle() external view returns (address);
+
+    function token() external view returns (address);
 }
 
 error NOT_OWNER();
@@ -20,32 +23,32 @@ error INVALID_TIMESTAMP();
 error MAX_PRICE();
 error STREAM_DOES_NOT_EXIST();
 error INVALID_TOKEN();
+error STREAM_ACTIVE();
 
 contract ScheduledTransfers is ERC721, BoringBatchable {
     using SafeTransferLib for ERC20;
 
     struct Payment {
-        address token;
-        uint32 lastPaid;
-        uint32 ends;
-        uint32 frequency;
+        uint88 lastPaid;
+        uint88 ends;
+        uint80 frequency;
         uint256 usdAmount;
     }
 
     string public constant baseURI = "https://nft.llamapay.io/scheduled/";
     address public oracle;
     address public owner;
+    address public token;
     uint256 public nextTokenId;
+    uint256 public maxPrice;
 
     mapping(uint256 => Payment) public payments;
-    mapping(uint256 => address) public redirects;
-    mapping(address => uint256) public maxPrice;
+    mapping(address => mapping(uint256 => address)) public redirects;
 
-    constructor()
-        ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY")
-    {
+    constructor() ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY") {
         oracle = ScheduledTransfersFactory(msg.sender).oracle();
         owner = ScheduledTransfersFactory(msg.sender).owner();
+        token = ScheduledTransfersFactory(msg.sender).token();
     }
 
     modifier onlyOwner() {
@@ -75,17 +78,15 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     }
 
     function scheduleTransfer(
-        address _token,
         address _to,
         uint256 _usdAmount,
-        uint32 _starts,
-        uint32 _ends,
-        uint32 _frequency
+        uint88 _starts,
+        uint88 _ends,
+        uint80 _frequency
     ) external onlyOwner {
         uint256 id = nextTokenId;
         _safeMint(_to, id);
         payments[id] = Payment({
-            token: _token,
             lastPaid: _starts,
             ends: _ends,
             frequency: _frequency,
@@ -97,10 +98,18 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     }
 
     function cancelTransfer(uint256 _id) external onlyOwner {
+        if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
         payments[_id].ends = uint32(block.timestamp);
     }
 
-    function withdrawPayer(address token, uint256 amount) external onlyOwner {
+    /// STILL EXERCISE CAUTION WHEN USING THIS FUNCTION
+    function burnStream(uint256 _id) external {
+        if (ownerOf(_id) != msg.sender) revert NOT_OWNER();
+        if (payments[_id].ends >= block.timestamp) revert STREAM_ACTIVE();
+        _burn(_id);
+    }
+
+    function withdrawPayer(uint256 amount) external onlyOwner {
         ERC20(token).safeTransfer(owner, amount);
     }
 
@@ -111,7 +120,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 _timestamp
     ) external {
         if (msg.sender != oracle) revert NOT_ORACLE();
-        if (_price > maxPrice[_token]) revert MAX_PRICE();
+        if (_price > maxPrice) revert MAX_PRICE();
         uint256 i = 0;
         while (i < ids.length) {
             _withdraw(ids[i], _token, _price, _timestamp);
@@ -128,7 +137,8 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 _timestamp
     ) private {
         Payment storage payment = payments[_id];
-        if (payment.token != _token) revert INVALID_TOKEN();
+        if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
+        if (token != _token) revert INVALID_TOKEN();
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
         uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
         if (_timestamp > updatedTimestamp) revert INVALID_TIMESTAMP();
@@ -140,29 +150,27 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
             payments[_id].lastPaid = uint32(updatedTimestamp);
         }
         address to;
-        address redirect = redirects[_id];
         address nftOwner = ownerOf(_id);
-        if (redirect != address(0)) {
-            to = redirect;
-        } else {
+        address redirect = redirects[nftOwner][_id];
+        if (redirect == address(0)) {
             to = nftOwner;
+        } else {
+            to = redirect;
         }
-        ERC20(payment.token).safeTransfer(to, owed / 1e18);
+        ERC20(token).safeTransfer(to, owed / 1e18);
     }
 
     function setRedirect(uint256 _id, address _redirectTo) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
-        redirects[_id] = _redirectTo;
+        if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
+        redirects[msg.sender][_id] = _redirectTo;
     }
 
     function changeOracle(address newOracle) external onlyOwner {
         oracle = newOracle;
     }
 
-    function setMaxPrice(address token, uint256 newMaxPrice)
-        external
-        onlyOwner
-    {
-        maxPrice[token] = newMaxPrice;
+    function setMaxPrice(uint256 newMaxPrice) external onlyOwner {
+        maxPrice = newMaxPrice;
     }
 }
