@@ -34,7 +34,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     string public constant baseURI = "https://nft.llamapay.io/scheduled/";
     address public oracle;
-    address public owner;
+    address public immutable owner;
     uint256 public nextTokenId;
 
     mapping(uint256 => Payment) public payments;
