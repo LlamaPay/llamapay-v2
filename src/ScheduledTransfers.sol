@@ -170,15 +170,20 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         Payment storage payment = payments[_id];
         if (ownerOf(_id) == address(0)) revert STREAM_DOES_NOT_EXIST();
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
-        uint256 updatedTimestamp = payment.lastPaid + payment.frequency;
+        uint256 updatedTimestamp;
+        unchecked {
+            updatedTimestamp = payment.lastPaid + payment.frequency;
+        }
         if (_timestamp > updatedTimestamp) revert INVALID_TIMESTAMP();
         uint256 owed;
         unchecked {
             owed =
-                ((_timestamp - payment.lastPaid) * payment.usdAmount * _price) /
-                payment.frequency;
-            payments[_id].lastPaid = uint32(updatedTimestamp);
+                (((_timestamp - payment.lastPaid) *
+                    payment.usdAmount *
+                    _price) / payment.frequency) /
+                1e18;
         }
+        payments[_id].lastPaid = uint32(updatedTimestamp);
         address to;
         address nftOwner = ownerOf(_id);
         address redirect = redirects[nftOwner][_id];
@@ -186,9 +191,6 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
             to = nftOwner;
         } else {
             to = redirect;
-        }
-        unchecked {
-            owed = owed / 1e18;
         }
         ERC20(token).safeTransfer(to, owed);
         emit Withdraw(
