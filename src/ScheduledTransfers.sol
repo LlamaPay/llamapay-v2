@@ -199,7 +199,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
             payment.usdAmount,
             _price,
             _timestamp,
-            updatedTimestamp
+            _timestamp
         );
     }
 
