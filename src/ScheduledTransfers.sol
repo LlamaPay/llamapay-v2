@@ -133,7 +133,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     /// STILL EXERCISE CAUTION WHEN USING THIS FUNCTION
     function burnStream(uint256 _id) external {
         if (ownerOf(_id) != msg.sender) revert NOT_OWNER();
-        if (payments[_id].ends >= block.timestamp) revert STREAM_ACTIVE();
+        if (payments[_id].ends >= block.timestamp || payments[_id].ends !== payments[_id].lastPaid) revert STREAM_ACTIVE();
         _burn(_id);
         emit BurnStream(_id);
     }
