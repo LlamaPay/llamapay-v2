@@ -183,7 +183,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
                 payment.usdAmount *
                 _price) / payment.frequency) /
             1e18;
-        payments[_id].lastPaid = uint32(_timestamp);
+        payments[_id].lastPaid = uint32(_timestamp); // _timestamp < block.timestamp, so it will fit into uint32 until 2106
         address to;
         address nftOwner = ownerOf(_id);
         address redirect = redirects[nftOwner][_id];
