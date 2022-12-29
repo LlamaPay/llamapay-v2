@@ -14,6 +14,8 @@ interface ScheduledTransfersFactory {
     function oracle() external view returns (address);
 
     function token() external view returns (address);
+
+    function maxPrice() external view returns (uint256);
 }
 
 error NOT_OWNER();
@@ -74,6 +76,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         oracle = ScheduledTransfersFactory(msg.sender).oracle();
         owner = ScheduledTransfersFactory(msg.sender).owner();
         token = ScheduledTransfersFactory(msg.sender).token();
+        maxPrice = ScheduledTransfersFactory(msg.sender).maxPrice();
     }
 
     modifier onlyOwner() {
