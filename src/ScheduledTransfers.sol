@@ -117,6 +117,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
             frequency: _frequency,
             usdAmount: _usdAmount
         });
+        require(_starts < 1e18 && _frequency < 1e18); // ensure that we dont have to worry about overflows later
         unchecked {
             nextTokenId++;
         }
@@ -172,18 +173,17 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         if (_timestamp > payment.ends) revert INVALID_TIMESTAMP();
         uint256 updatedTimestamp;
         unchecked {
-            updatedTimestamp = payment.lastPaid + payment.frequency;
+            // both starts and frequency are < 1e18
+            updatedTimestamp = uint256(payment.lastPaid) + uint256(payment.frequency);
         }
         if (_timestamp > updatedTimestamp) revert INVALID_TIMESTAMP();
         uint256 owed;
-        unchecked {
-            owed =
-                (((_timestamp - payment.lastPaid) *
-                    payment.usdAmount *
-                    _price) / payment.frequency) /
-                1e18;
-        }
-        payments[_id].lastPaid = uint32(updatedTimestamp);
+        owed =
+            (((_timestamp - payment.lastPaid) *
+                payment.usdAmount *
+                _price) / payment.frequency) /
+            1e18;
+        payments[_id].lastPaid = uint32(_timestamp);
         address to;
         address nftOwner = ownerOf(_id);
         address redirect = redirects[nftOwner][_id];
