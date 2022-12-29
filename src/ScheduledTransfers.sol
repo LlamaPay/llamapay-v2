@@ -132,7 +132,10 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     /// STILL EXERCISE CAUTION WHEN USING THIS FUNCTION
     function burnStream(uint256 _id) external {
         if (ownerOf(_id) != msg.sender) revert NOT_OWNER();
-        if (payments[_id].ends >= block.timestamp || payments[_id].ends !== payments[_id].lastPaid) revert STREAM_ACTIVE();
+        if (
+            payments[_id].ends >= block.timestamp ||
+            payments[_id].ends != payments[_id].lastPaid
+        ) revert STREAM_ACTIVE();
         _burn(_id);
         emit BurnStream(_id);
     }
@@ -173,14 +176,16 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint256 updatedTimestamp;
         unchecked {
             // cant overflow because these two are uint32
-            updatedTimestamp = uint256(payment.lastPaid) + uint256(payment.frequency);
+            updatedTimestamp =
+                uint256(payment.lastPaid) +
+                uint256(payment.frequency);
         }
         if (_timestamp > updatedTimestamp) revert INVALID_TIMESTAMP();
         uint256 owed = ((_timestamp - payment.lastPaid) *
-                payment.usdAmount *
-                _price)
+            payment.usdAmount *
+            _price);
         unchecked {
-            owed = owed / (payment.frequency * 1e18)
+            owed = owed / (payment.frequency * 1e18);
         }
         payments[_id].lastPaid = uint32(_timestamp); // _timestamp < block.timestamp, so it will fit into uint32 until 2106
         address to;
