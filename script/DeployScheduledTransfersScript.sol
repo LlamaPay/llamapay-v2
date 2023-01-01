@@ -7,16 +7,21 @@ import "../src/ScheduledTransfersFactory.sol";
 
 contract DeployScheduledTransfersScript is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        uint256 otherPrivateKey = vm.envUint("PRIVATE_KEY_2");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY_2");
         vm.startBroadcast(deployerPrivateKey);
         ScheduledTransfersFactory factory = new ScheduledTransfersFactory{
             salt: bytes32("llamao")
         }();
-        factory.createContract(address(0), address(0), 0);
-        vm.stopBroadcast();
-        vm.startBroadcast(otherPrivateKey);
-        factory.createContract(address(0), address(0), 0);
+        factory.createContract(
+            0xf45363F5114c8B5F834F99cE0A07bD345ec5eeb6,
+            0x4200000000000000000000000000000000000042,
+            100e8
+        );
+        factory.createContract(
+            0xf45363F5114c8B5F834F99cE0A07bD345ec5eeb6,
+            0x4200000000000000000000000000000000000042,
+            100e8
+        );
         vm.stopBroadcast();
     }
 }
