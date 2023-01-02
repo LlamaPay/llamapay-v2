@@ -498,10 +498,10 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     {
         Stream storage stream = streams[_id];
         Token storage token = tokens[stream.token];
-        uint starts = uint(stream.starts);
-        uint ends = uint(stream.ends);
-        uint amountPerSec = uint(stream.amountPerSec);
-        uint divisor = uint(token.divisor);
+        uint256 starts = uint256(stream.starts);
+        uint256 ends = uint256(stream.ends);
+        uint256 amountPerSec = uint256(stream.amountPerSec);
+        uint256 divisor = uint256(token.divisor);
         uint256 streamed;
         unchecked {
             streamed = (block.timestamp - lastUpdate) * token.totalPaidPerSec;
@@ -520,20 +520,17 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             return (0, 0, 0);
         }
 
-        uint256 start = max(uint(stream.lastPaid), starts);
+        uint256 start = max(uint256(stream.lastPaid), starts);
         uint256 stop = min(ends, lastUpdate);
         // If lastUpdate isn't block.timestamp and greater than ends, there is debt.
         if (lastUpdate != block.timestamp && ends > lastUpdate) {
             debt =
-                (min(block.timestamp, ends) -
-                    max(lastUpdate, starts)) *
+                (min(block.timestamp, ends) - max(lastUpdate, starts)) *
                 amountPerSec;
         }
         withdrawableAmount = (stop - start) * amountPerSec;
 
-        withdrawableAmount =
-            (withdrawableAmount + redeemables[_id]) /
-            divisor;
+        withdrawableAmount = (withdrawableAmount + redeemables[_id]) / divisor;
         debt = (debt + debts[_id]) / divisor;
     }
 
