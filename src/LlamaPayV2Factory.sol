@@ -17,13 +17,11 @@ contract LlamaPayV2Factory {
 
     /// @notice Creates LlamaPay V2 Payer contract
     function createLlamaPayContract() external returns (address llamapay) {
-        param = msg.sender;
         llamapay = address(
-            new LlamaPayV2Payer{salt: bytes32(uint256(uint160(msg.sender)))}()
+            new LlamaPayV2Payer{salt: bytes32(uint256(uint160(param = msg.sender)))}()
         );
-        payerContracts[amtOfPayers] = llamapay;
         unchecked {
-            amtOfPayers++;
+            payerContracts[amtOfPayers++] = llamapay;
         }
         emit LlamaPayContractCreated(msg.sender, llamapay);
     }
