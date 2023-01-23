@@ -40,8 +40,8 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     string public constant baseURI = "https://nft.llamapay.io/scheduled/";
     address public oracle;
-    address public owner;
-    address public token;
+    address public immutable owner;
+    address public immutable token;
     uint256 public nextTokenId;
     uint256 public maxPrice;
 
@@ -72,7 +72,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
     event ChangeOracle(address newOracle);
     event SetMaxPrice(uint256 newMaxprice);
 
-    constructor() ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY") {
+    constructor() ERC721("LlamaPay V2 Scheduled Transfer", "LLAMAPAY") payable {
         oracle = ScheduledTransfersFactory(msg.sender).oracle();
         owner = ScheduledTransfersFactory(msg.sender).owner();
         token = ScheduledTransfersFactory(msg.sender).token();
@@ -112,17 +112,18 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint32 _ends,
         uint32 _frequency
     ) external onlyOwner {
-        uint256 id = nextTokenId;
-        _safeMint(_to, id);
+        uint256 id;
+        unchecked {
+            _safeMint(_to, id = nextTokenId++);
+        }
+
         payments[id] = Payment({
             lastPaid: _starts,
             ends: _ends,
             frequency: _frequency,
             usdAmount: _usdAmount
         });
-        unchecked {
-            nextTokenId++;
-        }
+   
         emit ScheduleTransfer(id, _to, _usdAmount, _starts, _ends, _frequency);
     }
 
@@ -163,7 +164,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         while (i < length) {
             _withdraw(ids[i], _price, _timestamp);
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -213,8 +214,7 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
 
     function setRedirect(uint256 _id, address _redirectTo) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
-        redirects[msg.sender][_id] = _redirectTo;
-        emit SetRedirect(msg.sender, _id, _redirectTo);
+        emit SetRedirect(msg.sender, _id, redirects[msg.sender][_id] = _redirectTo);
     }
 
     function changeOracle(address newOracle) external onlyOwner {
