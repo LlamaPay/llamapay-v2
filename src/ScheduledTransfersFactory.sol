@@ -30,9 +30,11 @@ contract ScheduledTransfersFactory is BoringBatchable {
         oracle = _oracle;
         token = _token;
         maxPrice = _maxPrice;
+        
         createdContract = address(new ScheduledTransfers{
-            salt: keccak256(abi.encodePacked(msg.sender, block.timestamp))
+            salt: keccak256(abi.encodePacked(msg.sender, _oracle, _token, _maxPrice))
         }());
+
         emit PoolCreated(
             createdContract,
             msg.sender,
