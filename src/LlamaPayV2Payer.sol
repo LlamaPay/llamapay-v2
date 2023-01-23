@@ -115,8 +115,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     event RemoveStreamWhitelist(uint256 id, address indexed removed);
     event UpdateToken(address indexed token);
     event UpdateStream(uint256 id);
-    event RepayDebt(uint256 id, uint256 amount);
-    event RepayAllDebt(uint256 id, uint256 amount);
+    event RepayDebt(uint256 id, address indexed token, uint256 amount);
+    event RepayAllDebt(uint256 id, address indexed token, uint256 amount);
 
     constructor() ERC721("LlamaPay V2 Stream", "LLAMAPAY-V2-STREAM") {
         owner = Factory(msg.sender).param(); /// Call factory param to get owner address
@@ -394,7 +394,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         tokens[stream.token].balance -= toRepay;
         /// Reverts if paying too much debt
         debts[_id] -= toRepay;
-        emit RepayDebt(_id, _amount);
+        emit RepayDebt(_id, stream.token, _amount);
     }
 
     /// @notice attempt to repay all debt
@@ -419,7 +419,11 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
             }
         }
         redeemables[_id] += toPay;
-        emit RepayAllDebt(_id, toPay / uint256(tokens[stream.token].divisor));
+        emit RepayAllDebt(
+            _id,
+            stream.token,
+            toPay / uint256(tokens[stream.token].divisor)
+        );
     }
 
     /// @notice add address to payer whitelist
