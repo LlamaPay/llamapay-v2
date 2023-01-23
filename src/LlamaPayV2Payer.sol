@@ -105,8 +105,8 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     );
     event ModifyStream(uint256 id, uint208 newAmountPerSec, uint48 newEnd);
     event StopStream(uint256 id);
-    event ResumeStream(uint256 _id);
-    event BurnStream(uint256 _id);
+    event ResumeStream(uint256 id);
+    event BurnStream(uint256 id);
     event AddPayerWhitelist(address indexed whitelisted);
     event RemovePayerWhitelist(address indexed removed);
     event AddRedirectStream(uint256 id, address indexed redirected);
