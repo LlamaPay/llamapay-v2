@@ -21,9 +21,8 @@ contract LlamaPayV2Factory {
             new LlamaPayV2Payer{salt: bytes32(uint256(uint160(param = msg.sender)))}()
         );
         unchecked {
-            payerContracts[amtOfPayers++] = llamapay;
+            emit LlamaPayContractCreated(msg.sender, payerContracts[amtOfPayers++] = llamapay);
         }
-        emit LlamaPayContractCreated(msg.sender, llamapay);
     }
 
     /// @notice Calculates CREATE2 address for payer
