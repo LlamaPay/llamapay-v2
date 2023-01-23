@@ -15,6 +15,8 @@ contract LlamaPayV2Factory {
 
     event LlamaPayContractCreated(address owner, address ownerContract);
 
+    constructor() payable {} // Save gas on deployment
+
     /// @notice Creates LlamaPay V2 Payer contract
     function createLlamaPayContract() external returns (address llamapay) {
         llamapay = address(
