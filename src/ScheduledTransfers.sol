@@ -112,8 +112,9 @@ contract ScheduledTransfers is ERC721, BoringBatchable {
         uint32 _ends,
         uint32 _frequency
     ) external onlyOwner {
+        uint256 id;
         unchecked {
-            _safeMint(_to, uint256 id = nextTokenId++);
+            _safeMint(_to, id = nextTokenId++);
         }
 
         payments[id] = Payment({
