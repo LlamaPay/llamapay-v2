@@ -2,20 +2,21 @@
 
 ## Features
 
-- One contract per payer
-- Payer contracts are created using CREATE2
-- Stream multiple tokens per payer contract
-- Streams represented as NFTs
-- Can deposit on behalf of payer
-- Withdraw certain amounts from stream
-- Whitelisting for withdrawals
-- Redirect withdrawals 
-- Whitelisting other contracts to withdraw on behalf
-- Undercollateralized fixed streams
+### Payer
+- Single contract per payer
+- Contract address created using CREATE2
+- Can stream mutltiple tokens through one contract
+- Other wallets can deposit tokens on behalf of payer
+- Whitelist other addresses to act on payer behalf
 
-## WIP features
-- DCA
-- Yield
-- Gasless withdrawals through bot
-- Automatic withdrawals through bot
-- Scheduled transfers through bot
+### Streams
+- Represented as ERC-721s
+- Easily transferrable between addresses
+- Can withdraw set amount or entire balance redeemable
+- Undercollateralized
+- Fixed 
+- Tracks debt
+- Can create stream that started in the past
+- Can create stream that starts in the future
+- Can whitelist other addresses to withdraw on behalf
+- Can redirect funds to address that isn't the wallet holding NFT
