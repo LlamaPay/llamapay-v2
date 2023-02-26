@@ -4,6 +4,8 @@ pragma solidity ^0.8.17;
 
 import "./LlamaPayV2Payer.sol";
 
+/// @title LlamaPayV2 Factory Contract
+/// @author nemusona
 contract LlamaPayV2Factory {
     bytes32 constant INIT_CODEHASH =
         keccak256(type(LlamaPayV2Payer).creationCode);
