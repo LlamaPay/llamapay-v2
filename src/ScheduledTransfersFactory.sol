@@ -18,6 +18,8 @@ contract ScheduledTransfersFactory is BoringBatchable {
         address oracle,
         uint256 maxPrice
     );
+    
+    constructor() payable {} // Save gas on deployment
 
     function createContract(
         address _oracle,
@@ -28,7 +30,11 @@ contract ScheduledTransfersFactory is BoringBatchable {
         oracle = _oracle;
         token = _token;
         maxPrice = _maxPrice;
-        createdContract = address(new ScheduledTransfers());
+        
+        createdContract = address(new ScheduledTransfers{
+            salt: keccak256(abi.encodePacked(msg.sender, _oracle, _token, _maxPrice))
+        }());
+
         emit PoolCreated(
             createdContract,
             msg.sender,
