@@ -47,7 +47,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
         uint48 ends;
     }
 
-    address public owner;
+    address public immutable owner;
     string public constant baseURI = "https://nft.llamapay.io/stream/";
     uint256 public nextTokenId;
 
@@ -118,7 +118,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     event RepayDebt(uint256 id, address indexed token, uint256 amount);
     event RepayAllDebt(uint256 id, address indexed token, uint256 amount);
 
-    constructor() ERC721("LlamaPay V2 Stream", "LLAMAPAY-V2-STREAM") {
+    constructor() payable ERC721("LlamaPay V2 Stream", "LLAMAPAY-V2-STREAM") {
         owner = Factory(msg.sender).param(); /// Call factory param to get owner address
     }
 
@@ -310,7 +310,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
 
         /// Check if stream is active
         /// Prevents miscalculation in totalPaidPerSec
-        if (stream.lastPaid > 0) {
+        if (stream.lastPaid != 0) {
             tokens[stream.token].totalPaidPerSec += uint256(_newAmountPerSec);
             unchecked {
                 tokens[stream.token].totalPaidPerSec -= uint256(
@@ -344,7 +344,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     /// @param _id token id
     function resumeStream(uint256 _id) external onlyOwnerOrWhitelisted {
         Stream storage stream = _updateStream(_id);
-        if (stream.lastPaid > 0) revert ACTIVE_STREAM();
+        if (stream.lastPaid != 0) revert ACTIVE_STREAM();
         if (block.timestamp >= stream.ends) revert STREAM_ENDED();
         if (block.timestamp > tokens[stream.token].lastUpdate)
             revert PAYER_IN_DEBT();
@@ -359,7 +359,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
     function burnStream(uint256 _id) external {
         if (msg.sender != ownerOf(_id)) revert NOT_OWNER();
         /// Prevents somebody from burning an active stream or a stream with balance in it
-        if (redeemables[_id] > 0 || streams[_id].lastPaid > 0 || debts[_id] > 0)
+        if (redeemables[_id] != 0 || streams[_id].lastPaid != 0 || debts[_id] != 0)
             revert STREAM_ACTIVE_OR_REDEEMABLE();
 
         /// Free up storage
@@ -591,7 +591,7 @@ contract LlamaPayV2Payer is ERC721, BoringBatchable {
                 debts[id] = owed - balance;
                 redeemables[id] = balance;
             }
-            nextTokenId++;
+            ++nextTokenId;
         }
 
         streams[id] = Stream({
